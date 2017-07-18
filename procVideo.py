@@ -63,7 +63,7 @@ def procSobel(img,thresh_min = 20,thresh_max = 100):
 
 def getPerspectiveMatrix():
     org = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]])
-    dst = np.float32([[300, 700], [1010, 700], [1010, 120], [300, 120]])
+    dst = np.float32([[335, 700], [955, 700], [955, 120], [335, 120]])
     M = cv2.getPerspectiveTransform(org, dst)
     Minv = cv2.getPerspectiveTransform(dst,org)
     return M, Minv
@@ -195,22 +195,34 @@ def curveStepOne(binary_warped):
 def main():
     startUp()
 
-    #cap = cv2.VideoCapture("harder_challenge_video.mp4")
+    cap = cv2.VideoCapture("harder_challenge_video.mp4")
     cap = cv2.VideoCapture("challenge_video.mp4")
     #cap = cv2.VideoCapture("project_video.mp4")
     [valid,img] = cap.read()
+    dotsL = np.array((img.shape[0],2), dtype=np.uint8)
     imgMod = warped(doImageProcess(img))
-    curveStepOne(imgMod)
+    left_fit, right_fit=curveStepOne(imgMod)
     cv2.imshow("Test",imgMod);
     while valid:
         imgMod = warped(doImageProcess(img))
-        cv2.imshow("Org", img);
-        cv2.imshow("Test", imgMod*255);
+        polW = np.zeros(img.shape)
+        dst= np.zeros(img.shape)
+        left_fit, right_fit = curveStepOne(imgMod)
+        ploty = np.linspace(0, img.shape[0] - 1, img.shape[0])
+        left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
+        right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+        dotsL=np.dstack((left_fitx,ploty))
+        dotsR = np.dstack((right_fitx, ploty))
+        poligon = np.concatenate((np.int32(dotsL),np.flip(np.int32(dotsR),axis=1)),axis=1)
+        cv2.fillPoly(polW,poligon,(255,255,255))
+        #cv2.polylines(polW, np.int32(dotsR), False, (255,255,255))
+        cv2.imshow("Org", img)
+        cv2.imshow("Test", imgMod*255)
+        dw = np.uint8(dewarped(polW))
+        dst = cv2.addWeighted(img, .2, dw, .8, 0.0);
+        cv2.imshow("Mix", dst)
         cv2.waitKey(1)
         [valid, img] = cap.read()
-
-        #cv2.waitKey(1)
-        #curveStepOne(cv2.cvtColor(imgMod,cv2.COLOR_HSV2BGR))
 
 
 
