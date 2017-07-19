@@ -311,12 +311,12 @@ def curveStepOne(binary_warped):
         if left_windows_failure >maxFailuers and right_windows_failure<maxFailuers:
             #left_fit = deepcopy(right_fit)
             #left_fit -=(0,0,3.7/xprop)
-            left_fit = offsetCurve(right_fit,-3.7/xprop,0,out_img.shape[0])
+            left_fit = offsetCurve(right_fit,-laneWidth/xprop,0,out_img.shape[0],xprop/yprop)
             fakeLeft = True
         if right_windows_failure >maxFailuers and left_windows_failure<maxFailuers:
             #right_fit = deepcopy(left_fit)
             #right_fit += (0, 0, 3.7/xprop)
-            testTest = offsetCurve(left_fit,3.7/xprop,0,out_img.shape[0])
+            testTest = offsetCurve(left_fit,laneWidth/xprop,0,out_img.shape[0],xprop/yprop)
             right_fit = deepcopy(testTest)
             fakeRight = True
         old_left_fit = deepcopy(left_fit)
@@ -325,17 +325,18 @@ def curveStepOne(binary_warped):
             left_base_old = left_lane_xs[0]
             rightx_base_old = right_lane_xs[0]
             old_lane_Width= (rightx_base_old - left_base_old) * xprop
+        laneWidth=(right_fit[2]-left_fit[2])*xprop
     return left_fit, right_fit, laneWidth, fakeLeft, fakeRight,out_img
 
-def offsetCurve(fit, offset,startx,endx):
+def offsetCurve(fit, offset,startx,endx,aberration=1):
     nx = []
     ny = []
-
+    aberration = 1
     for x in range(endx):
-        dxdy = 2*fit[0]*x + fit[1]
-        y = fit[0]*x**2 + fit[1]*x + fit[2]
+        dxdy = (2*fit[0]*x + fit[1])
+        y = fit[0]*(x/aberration)**2 + fit[1]*(x/aberration) + fit[2]
         ang = math.atan(dxdy)
-        nx.append(x+math.sin(-ang)*offset)
+        nx.append(x/aberration+math.sin(-ang)*offset)
         ny.append(y+math.cos(-ang)*offset)
     newFit= np.polyfit(nx, ny, 2)
     print(newFit[0]*720**2+newFit[1]*720+newFit[2])
@@ -415,11 +416,14 @@ def main():
         out2 = cv2.resize(polW,(320,180))
         dst[0:180,960:]=out2
         cv2.imshow("Mix", dst)
+        if(laneWidth>4):
+            print("muchoo")
+
         k=chr(cv2.waitKey(5)&255)
         if k=='p':
             k=cv2.waitKey(100)
             while k!='c' and k!='p':
-                k = cv2.waitKey(100)
+                k = chr(cv2.waitKey(100))
                 pass
         if k=='r':
             if frame >60:
