@@ -10,31 +10,32 @@ import math
 CALCAM_FILENAME = "cam_cal.pkl"
 M = Minv = mtx = dist = rvecs = tvecs = None
 #project calibration
-orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
-videoFileName = "project_video.mp4"
+#orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
+#videoFileName = "project_video.mp4"
 
-#chalenger calibration
-#orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
-#videoFileName = "challenge_video.mp4"
+# chalenger calibration
+orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
+videoFileName = "challenge_video.mp4"
 
 #Hard chalenger calibration
-#orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
-#VideoFilenName = "harder_challenge_video.mp4"
+orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
+videoFileName = "harder_challenge_video.mp4"
 
 
 dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
 xprop = 1
 yprop = 1
-nwindows = 9
+nwindows = 12
 leftx_base_old = dstPers[0,0]
 rightx_base_old = dstPers[1,0]
 old_lane_Width =0
 old_left_fit = (0,0,leftx_base_old)
 old_right_fit = (0,0,rightx_base_old)
 isLastValid= False
+ploty = np.linspace(0, 719, 720)
 
 def startUp():
-    global M, Minv, mtx, dist, rvecs, tvecs, xprop, yprop
+    global M, Minv, mtx, dist, rvecs, tvecs, xprop, yprop, ploty
     # xproportion is the width of the lane proyected/ real size in m.
     xprop = 3.7/(float)(dstPers[1,0]-dstPers[0,0])
     # the Y rectangle was 29m so:
@@ -150,16 +151,24 @@ def fquad(fit,y):
     y2=np.array([y**2,y,1])
     return np.dot(fit,y2)
 
-def checkParalell(fit1, fit2):
+def checkParalell(fitL, fitR, normal_distance):
     #as we supose tangent to de curve of the row in the bottom we can assume that:
-    distance= fquad(fit2,720)-fquad(fit1,720)
-    nfit2 = offsetCurve(fit1,distance,0,720)
+    posL = fquad(fitL, ploty)
+    porR = fquad(fitR, ploty)
+    distance= (porR-posL)
+    dRatio = sum(distance/normal_distance)
+    ok= True
+    if  dRatio > 1.5 or dRatio < 0.5:
+        ok = False
+    return ok
+
+    '''nfit2 = gen_parallel(fit1, distance, 0, 720)
     ypoints=np.arange(0,720)
     comparativa = np.array([])
     resy= fquad(fit2,ypoints)
     resy2 = fquad(nfit2, ypoints)
     print(np.dstack((ypoints,resy,resy2)))
-    print(resy-resy2)
+    print(resy-resy2)'''
 
 def doImageProcess(image):
 
@@ -228,8 +237,7 @@ def curveStepOne(binary_warped):
         rightx_base = rightx_base_old
         laneWidth = old_lane_Width
 
-    leftx_base_old = leftx_base
-    rightx_base_old = rightx_base
+
     # Choose the number of sliding windows
 
     # Set height of windows
@@ -242,7 +250,7 @@ def curveStepOne(binary_warped):
     leftx_current = leftx_base.astype(int)
     rightx_current = rightx_base.astype(int)
     # Set the width of the windows +/- margin
-    margin = 80
+    margin = 60
     # Set minimum number of pixels found to recenter window
     minpix = 50
     # Create empty lists to receive left and right lane pixel indices
@@ -264,8 +272,7 @@ def curveStepOne(binary_warped):
         win_xright_low = rightx_current - margin
         win_xright_high = rightx_current + margin
         # Draw the windows on the visualization image
-        cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2)
-        cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 255, 0), 2)
+
         # Identify the nonzero pixels in x and y within the window
         good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xleft_low) & (
             nonzerox < win_xleft_high)).nonzero()[0]
@@ -276,20 +283,25 @@ def curveStepOne(binary_warped):
         right_lane_inds.append(good_right_inds)
         # If you found > minpix pixels, recenter next window on their mean position
         if len(good_left_inds) > minpix:
+            cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2)
             previous_left_offset = leftx_current
             leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
             previous_left_offset = leftx_current - previous_left_offset
             leftx_current += previous_left_offset
         else:
+            cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 0,255), 2)
             left_windows_failure += 1
         if len(good_right_inds) > minpix:
+            cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 255, 0), 2)
             previous_right_offset = rightx_current
             rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
             previous_right_offset = rightx_current - previous_right_offset
             rightx_current += previous_right_offset
         else:
+            cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 0, 255), 2)
             right_windows_failure += 1
-            previous_right_offset = previous_left_offset
+            if len(good_right_inds) > minpix:
+                rightx_current += previous_left_offset
         if len(good_left_inds) < minpix and len(good_right_inds) > minpix:
             previous_left_offset = previous_right_offset
         #stop geting data
@@ -307,56 +319,76 @@ def curveStepOne(binary_warped):
     # Concatenate the arrays of indices
     left_lane_inds = np.concatenate(left_lane_inds)
     right_lane_inds = np.concatenate(right_lane_inds)
-    # Extract left and right line pixel positions
-    leftx = nonzerox[left_lane_inds]
-    lefty = nonzeroy[left_lane_inds]
-    rightx = nonzerox[right_lane_inds]
-    righty = nonzeroy[right_lane_inds]
 
-    minimumW= 3
+
+
+
+    minimumW= 2
     maxFailuers = nwindows-minimumW
     fakeLeft = False
     fakeRight = False
     # Fit a second order polynomial to each
     isLastValid = False
-    if left_windows_failure >maxFailuers and right_windows_failure>maxFailuers:
-        left_fit=deepcopy(old_left_fit)
+    isLeftValid = False
+    isRightValid = False
+
+    #sanity checks.
+    # 1) verify number of valid windows and extract left and right line pixel positions
+    if left_windows_failure <=maxFailuers:
+        leftx = nonzerox[left_lane_inds]
+        lefty = nonzeroy[left_lane_inds]
+        left_fit = np.polyfit(lefty, leftx, 2)
+        isLeftValid = True
+    if right_windows_failure <=maxFailuers:
+        rightx = nonzerox[right_lane_inds]
+        righty = nonzeroy[right_lane_inds]
+        right_fit = np.polyfit(righty, rightx, 2)
+        isRightValid = True
+
+    # 2) Verify paralells (distance)
+
+    if isLeftValid and isRightValid:
+        goodParalel = checkParalell(left_fit,right_fit,3.9/xprop)
+        if not goodParalel:
+            if right_windows_failure > left_windows_failure:
+                isRightValid = False
+            else:
+                isLeftValid = False
+
+    # 3) verify angles
+
+    if isLeftValid:
+        left_curvature = curvatureLine(left_fit,ploty)
+        if np.min(np.abs(left_curvature)) < 50:
+            isLeftValid= False
+    if isRightValid:
+        right_curvature = curvatureLine(right_fit,ploty)
+        if np.min(np.abs(right_curvature)) < 50:
+            isRightValid= False
+
+    # reconstruct failures
+
+    if (not isLeftValid) and (not isRightValid):
+        left_fit = deepcopy(old_left_fit)
         right_fit = deepcopy(old_right_fit)
+    elif isLeftValid or isRightValid:
+        if not isLeftValid:
+            left_fit = gen_parallel(right_fit, -3.9 / xprop, 0, out_img.shape[0], xprop / yprop)
+
+        if not isRightValid:
+            right_fit = gen_parallel(left_fit, 3.9 / xprop, 0, out_img.shape[0], xprop / yprop)
     else:
-        if left_windows_failure <maxFailuers:
-            left_fit = np.polyfit(lefty, leftx, 2)
-            isLastValid=True
-        else:
-            left_fit = (0,0,dstPers[0,0])
-        if right_windows_failure <maxFailuers:
-            right_fit = np.polyfit(righty, rightx, 2)
-            isLastValid = True & isLastValid
-        else:
-            isLastValid = False
-            right_fit= (0,0,dstPers[1,0])
+        isLastValid = True
+    left_base_old =  fquad(left_fit,720)
+    rightx_base_old = fquad(right_fit, 720)
+    laneWidth = old_lane_Width= (rightx_base_old - left_base_old) * xprop
+    old_left_fit = deepcopy(left_fit)
+    old_right_fit = deepcopy(right_fit)
 
-        if left_windows_failure >maxFailuers and right_windows_failure<maxFailuers:
-            #left_fit = deepcopy(right_fit)
-            #left_fit -=(0,0,3.7/xprop)
-            left_fit = offsetCurve(right_fit,-laneWidth/xprop,0,out_img.shape[0],xprop/yprop)
-            fakeLeft = True
-        if right_windows_failure >maxFailuers and left_windows_failure<maxFailuers:
-            #right_fit = deepcopy(left_fit)
-            #right_fit += (0, 0, 3.7/xprop)
-            testTest = offsetCurve(left_fit,laneWidth/xprop,0,out_img.shape[0],xprop/yprop)
-            right_fit = deepcopy(testTest)
-            fakeRight = True
-        old_left_fit = deepcopy(left_fit)
-        old_right_fit = deepcopy(right_fit)
-        if isLastValid:
-            left_base_old = left_lane_xs[0]
-            rightx_base_old = right_lane_xs[0]
-            old_lane_Width= (rightx_base_old - left_base_old) * xprop
-            checkParalell(left_fit,right_fit)
-        laneWidth=(right_fit[2]-left_fit[2])*xprop
-    return left_fit, right_fit, laneWidth, fakeLeft, fakeRight,out_img
 
-def offsetCurve(fit, offset,startx,endx,aberration=1):
+    return left_fit, right_fit, laneWidth, isLeftValid, isRightValid,out_img
+
+def gen_parallel(fit, offset, startx, endx, aberration=1):
     nx = []
     ny = []
     aberration = 1
@@ -367,7 +399,7 @@ def offsetCurve(fit, offset,startx,endx,aberration=1):
         nx.append(x/aberration+math.sin(-ang)*offset)
         ny.append(y+math.cos(-ang)*offset)
     newFit= np.polyfit(nx, ny, 2)
-    print(newFit[0]*720**2+newFit[1]*720+newFit[2])
+    #print(newFit[0]*720**2+newFit[1]*720+newFit[2])
     return newFit
 
 def curvature(leftx,rightx,ploty,y_eval):
@@ -379,14 +411,29 @@ def curvature(leftx,rightx,ploty,y_eval):
     left_fit_cr = np.polyfit(ploty * ym_per_pix, leftx * xm_per_pix, 2)
     right_fit_cr = np.polyfit(ploty * ym_per_pix, rightx * xm_per_pix, 2)
     # Calculate the new radii of curvature
-    left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(
-        2 * left_fit_cr[0])
-    right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(
-        2 * right_fit_cr[0])
-    # Now our radius of curvature is in meters
+    left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / \
+                    (2 * left_fit_cr[0])
+    right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / \
+                     (2 * right_fit_cr[0])
+
     #print(left_curverad, 'm', right_curverad, 'm')
     # Example values: 632.1 m    626.2 m
     return left_curverad, right_curverad
+
+def curvatureLine(fit,ploty):
+    # Define conversions in x and y from pixels space to meters
+    ym_per_pix = yprop  # meters per pixel in y dimension
+    xm_per_pix = xprop  # meters per pixel in x dimension
+
+    # fit_cr gives a real X when introduce a proyected y
+    fit_cr = fit*xprop
+    # Calculate the new radii of curvature in all points
+    curverad = ((1 + (2 * fit_cr[0] * ploty  + fit_cr[1]) ** 2) ** 1.5) / \
+                    (2 * fit_cr[0])
+
+    # Now our radius of curvature is in meters in all points
+    return curverad
+
 def main():
     startUp()
 
@@ -402,17 +449,17 @@ def main():
     while valid:
         frame +=1
         if frame == 2:
-            print("pause")
+            pass
         imgMod = warped(doImageProcess(img))
         polW = np.zeros(img.shape)
         dst = np.zeros(img.shape)
         left_fit, right_fit, laneWidth, lwf, rwf,out_img = curveStepOne(imgMod)
-        ploty = np.linspace(0, img.shape[0] - 1, img.shape[0])
+
         left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
         right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
         dotsL = np.dstack((left_fitx, ploty))
         dotsR = np.dstack((right_fitx, ploty))
-        par_fit = offsetCurve(left_fit,3.7/xprop,0,720)
+        par_fit = gen_parallel(left_fit, 3.7 / xprop, 0, 720)
         parx_fit = fquad(par_fit,ploty)
         dotsPar = np.dstack((parx_fit,ploty))
         poligon = np.concatenate((np.int32(dotsL), np.flip(np.int32(dotsR), axis=1)), axis=1)
@@ -426,8 +473,8 @@ def main():
         if lwf:
             cv2.polylines(polW, np.int32(dotsL), False, (255, 0, 255),thickness=10)
         else:
-            cv2.polylines(polW, np.int32(dotsL), False, (0, 0, 255), thickness=10)
-        cv2.polylines(polW, np.int32(dotsPar), False, (255,0, 0), thickness=10)
+            cv2.polylines(polW, np.int32(dotsL), False, (255, 0, 0 ), thickness=10)
+        cv2.polylines(polW, np.int32(dotsPar), False, (0,0, 255), thickness=10)
         '''persp3c = np.zeros(img.shape)
         persp3c[:,:,0]= 0
         persp3c[:,:,1] = imgMod * 255
@@ -437,18 +484,20 @@ def main():
         cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,20),font,15,(255,0,255))
         cv2.addText(dst, "Left failures: {:} Right failures: {:}".format(lwf,rwf), (10, 40), font, 15, (255, 0, 255))
         lc, rc = curvature(left_fitx, right_fitx, ploty, 700)
-        '''for i in range(9):
-            lc, rc = curvature(left_fitx,right_fitx,ploty,40+i*80)
-            cv2.addText(dst, "Pos y {} Left curvature: {:.0f} Right curvature: {:.0f}".format(i+40*80,lc, rc), (10, 60+20*i), font, 15, (255, 0, 255))
-        '''
+        for i in range(1):
+            lc, rc = curvature(left_fitx,right_fitx,ploty,720-40-i*80)
+            cv2.addText(dst, "Pos y {} Left curvature: {:.0f} Right curvature: {:.0f}".format(720-40-i*80,lc, rc), (10, 60+20*i), font, 15, (255, 0, 255))
+
 
         #cv2.imshow("Org", img)
         #cv2.imshow("Persp", out_img)
         out2 = cv2.resize(polW,(320,180))
+        out3 = cv2.resize(out_img, (320, 180))
         dst[0:180,960:]=out2
+        dst[185:365, 960:] = out3
         cv2.imshow("Mix", dst)
         if(laneWidth>4):
-            print("muchoo")
+            pass
 
         k=chr(cv2.waitKey(5)&255)
         if k=='p':
@@ -456,14 +505,15 @@ def main():
             while k!='c' and k!='p':
                 k = chr(cv2.waitKey(100)&255)
                 pass
+        if k == 'm':
+            frame=1000
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame);
         if k=='r':
             if frame >60:
                 frame-=60
             else:
                 frame=0
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame);
-        if lc<300 or rc<300:
-            print("curvature error")
         [valid, img] = cap.read()
 
 
