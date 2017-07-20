@@ -12,14 +12,17 @@ M = Minv = mtx = dist = rvecs = tvecs = None
 #project calibration
 #orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
 #videoFileName = "project_video.mp4"
+yLenXample = 29.0
 
 # chalenger calibration
 orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
 videoFileName = "challenge_video.mp4"
+yLenXample = 29.0
 
 #Hard chalenger calibration
-orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
+orgPers = np.float32([[344,660],[933,660],[743,500],[519,500]]) #chalenger calibration
 videoFileName = "harder_challenge_video.mp4"
+yLenXample = 18.0
 
 
 dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
@@ -133,9 +136,9 @@ def maskHSVYellowAndWhite(orig_img):
     maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
     # to join both mask I have to do an OR between them,
     # finally make a BRG image with 255 in all dots yellow or white
-    #mask = maskY
+    mask = maskW
     mask = np.bitwise_or(maskW, maskY)
-    mask = np.bitwise_or(mask, maskS)
+    #mask = np.bitwise_or(mask, maskS)
     #mask = np.bitwise_or(mask, mask4)
     #mask=maskY
     mask3 = np.copy(orig_img)
@@ -181,15 +184,15 @@ def doImageProcess(image):
     image = cv2.undistort(image, mtx, dist, None, mtx)
     # Apply blur to original image with a small kernel.
 
-    bluredImage = cv2.GaussianBlur(image, (3, 3), 0)
+    bluredImage = cv2.GaussianBlur(image, (3, 3), 2)
 
     # remove all pixels that is not white or yellow
-    '''sobx, soby = procSobel2(bluredImage, 20, 100)
+    sobx, soby = procSobel2(bluredImage, 80, 150)
     filter =  soby * 255
 
     image[:,:,0]= filter
     image[:, :, 1] = filter
-    image[:, :, 2] = filter'''
+    image[:, :, 2] = filter
     maskedImage = np.bitwise_and(image, bluredImage)
     maskedImage = maskHSVYellowAndWhite(bluredImage)
 
@@ -253,6 +256,7 @@ def curveStepOne(binary_warped):
     margin = 60
     # Set minimum number of pixels found to recenter window
     minpix = 50
+    maxpix = (margin*window_height)*0.8
     # Create empty lists to receive left and right lane pixel indices
     left_lane_inds = []
     right_lane_inds = []
@@ -282,7 +286,7 @@ def curveStepOne(binary_warped):
         left_lane_inds.append(good_left_inds)
         right_lane_inds.append(good_right_inds)
         # If you found > minpix pixels, recenter next window on their mean position
-        if len(good_left_inds) > minpix:
+        if len(good_left_inds) > minpix and len(good_left_inds)< maxpix:
             cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2)
             previous_left_offset = leftx_current
             leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
@@ -291,7 +295,7 @@ def curveStepOne(binary_warped):
         else:
             cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 0,255), 2)
             left_windows_failure += 1
-        if len(good_right_inds) > minpix:
+        if len(good_right_inds) > minpix and len(good_right_inds)< maxpix:
             cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 255, 0), 2)
             previous_right_offset = rightx_current
             rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
@@ -450,6 +454,7 @@ def main():
         frame +=1
         if frame == 2:
             pass
+        #img[:, :, 0] = 0  # bye bye green
         imgMod = warped(doImageProcess(img))
         polW = np.zeros(img.shape)
         dst = np.zeros(img.shape)
@@ -493,6 +498,7 @@ def main():
         #cv2.imshow("Persp", out_img)
         out2 = cv2.resize(polW,(320,180))
         out3 = cv2.resize(out_img, (320, 180))
+
         dst[0:180,960:]=out2
         dst[185:365, 960:] = out3
         cv2.imshow("Mix", dst)
@@ -506,14 +512,14 @@ def main():
                 k = chr(cv2.waitKey(100)&255)
                 pass
         if k == 'm':
-            frame=1000
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame);
+            frame=830
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame)
         if k=='r':
             if frame >60:
                 frame-=60
             else:
                 frame=0
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame);
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame)
         [valid, img] = cap.read()
 
 
