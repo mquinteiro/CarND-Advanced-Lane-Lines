@@ -9,8 +9,20 @@ from copy import deepcopy
 import math
 CALCAM_FILENAME = "cam_cal.pkl"
 M = Minv = mtx = dist = rvecs = tvecs = None
-orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]])
-dstPers = np.float32([[400, 720], [895, 720], [895, 120], [400, 120]])
+#project calibration
+orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
+videoFileName = "project_video.mp4"
+
+#chalenger calibration
+#orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
+#videoFileName = "challenge_video.mp4"
+
+#Hard chalenger calibration
+#orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
+#VideoFilenName = "harder_challenge_video.mp4"
+
+
+dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
 xprop = 1
 yprop = 1
 nwindows = 9
@@ -116,7 +128,7 @@ def maskHSVYellowAndWhite(orig_img):
 
     maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 100]), np.array([22 + 3, 125 + 90, 100 + 70]))
     # get withe mask
-    maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 25]), np.array([176, midS + 16, midV + 25]))
+    maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 30]), np.array([176, midS + 16, midV + 25]))
     maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
     # to join both mask I have to do an OR between them,
     # finally make a BRG image with 255 in all dots yellow or white
@@ -134,7 +146,20 @@ def maskHSVYellowAndWhite(orig_img):
     #maskedImage = np.bitwise_and(mask3, orig_img)
     #return mask3
     return mask
+def fquad(fit,y):
+    y2=np.array([y**2,y,1])
+    return np.dot(fit,y2)
 
+def checkParalell(fit1, fit2):
+    #as we supose tangent to de curve of the row in the bottom we can assume that:
+    distance= fquad(fit2,720)-fquad(fit1,720)
+    nfit2 = offsetCurve(fit1,distance,0,720)
+    ypoints=np.arange(0,720)
+    comparativa = np.array([])
+    resy= fquad(fit2,ypoints)
+    resy2 = fquad(nfit2, ypoints)
+    print(np.dstack((ypoints,resy,resy2)))
+    print(resy-resy2)
 
 def doImageProcess(image):
 
@@ -161,6 +186,8 @@ def doImageProcess(image):
 
     #return cv2.cvtColor(maskedImage,cv2.COLOR_BayerRG2GRAY)
     return maskedImage
+
+
 
 
 def warped(img):
@@ -230,7 +257,7 @@ def curveStepOne(binary_warped):
     previous_right_offset = 0
     for window in range(nwindows):
         # Identify window boundaries in x and y (and right and left)
-        win_y_low = binary_warped.shape[0] - (window + 1) * window_height
+        win_y_low = binary_warped.shape[0]  - (window + 1) * window_height
         win_y_high = binary_warped.shape[0] - window * window_height
         win_xleft_low = leftx_current - margin
         win_xleft_high = leftx_current + margin
@@ -286,7 +313,7 @@ def curveStepOne(binary_warped):
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
 
-    minimumW= nwindows*0.2
+    minimumW= 3
     maxFailuers = nwindows-minimumW
     fakeLeft = False
     fakeRight = False
@@ -325,6 +352,7 @@ def curveStepOne(binary_warped):
             left_base_old = left_lane_xs[0]
             rightx_base_old = right_lane_xs[0]
             old_lane_Width= (rightx_base_old - left_base_old) * xprop
+            checkParalell(left_fit,right_fit)
         laneWidth=(right_fit[2]-left_fit[2])*xprop
     return left_fit, right_fit, laneWidth, fakeLeft, fakeRight,out_img
 
@@ -362,9 +390,7 @@ def curvature(leftx,rightx,ploty,y_eval):
 def main():
     startUp()
 
-    #cap = cv2.VideoCapture("harder_challenge_video.mp4")
-    cap = cv2.VideoCapture("challenge_video.mp4")
-    #cap = cv2.VideoCapture("project_video.mp4")
+    cap = cv2.VideoCapture(videoFileName)
     [valid, img] = cap.read()
     dotsL = np.array((img.shape[0], 2), dtype=np.uint8)
     imgMod = warped(doImageProcess(img))
@@ -386,8 +412,13 @@ def main():
         right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
         dotsL = np.dstack((left_fitx, ploty))
         dotsR = np.dstack((right_fitx, ploty))
+        par_fit = offsetCurve(left_fit,3.7/xprop,0,720)
+        parx_fit = fquad(par_fit,ploty)
+        dotsPar = np.dstack((parx_fit,ploty))
         poligon = np.concatenate((np.int32(dotsL), np.flip(np.int32(dotsR), axis=1)), axis=1)
+
         cv2.fillPoly(polW, poligon, (0, 255, 0))
+        #cv2.fillPoly(polW, [dstPers.astype(int)], (0, 0, 255)) #original calibration polygon
         if rwf:
             cv2.polylines(polW, np.int32(dotsR), False, (255,255,0),thickness=10)
         else:
@@ -396,7 +427,7 @@ def main():
             cv2.polylines(polW, np.int32(dotsL), False, (255, 0, 255),thickness=10)
         else:
             cv2.polylines(polW, np.int32(dotsL), False, (0, 0, 255), thickness=10)
-
+        cv2.polylines(polW, np.int32(dotsPar), False, (255,0, 0), thickness=10)
         '''persp3c = np.zeros(img.shape)
         persp3c[:,:,0]= 0
         persp3c[:,:,1] = imgMod * 255
@@ -423,7 +454,7 @@ def main():
         if k=='p':
             k=cv2.waitKey(100)
             while k!='c' and k!='p':
-                k = chr(cv2.waitKey(100))
+                k = chr(cv2.waitKey(100)&255)
                 pass
         if k=='r':
             if frame >60:
