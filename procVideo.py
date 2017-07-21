@@ -7,19 +7,20 @@ import pickle
 import glob
 from copy import deepcopy
 import math
+from time import time
 CALCAM_FILENAME = "cam_cal.pkl"
 M = Minv = mtx = dist = rvecs = tvecs = None
 #project calibration
-#orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
-#videoFileName = "project_video.mp4"
+orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
+videoFileName = "project_video.mp4"
 
 # chalenger calibration
 orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
 videoFileName = "challenge_video.mp4"
 
 #Hard chalenger calibration
-orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
-videoFileName = "harder_challenge_video.mp4"
+#orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
+#videoFileName = "harder_challenge_video.mp4"
 
 
 dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
@@ -33,7 +34,7 @@ old_left_fit = (0,0,leftx_base_old)
 old_right_fit = (0,0,rightx_base_old)
 isLastValid= False
 ploty = np.linspace(0, 719, 720)
-
+baseTime = time()
 def startUp():
     global M, Minv, mtx, dist, rvecs, tvecs, xprop, yprop, ploty
     # xproportion is the width of the lane proyected/ real size in m.
@@ -156,9 +157,15 @@ def checkParalell(fitL, fitR, normal_distance):
     posL = fquad(fitL, ploty)
     porR = fquad(fitR, ploty)
     distance= (porR-posL)
-    dRatio = sum(distance/normal_distance)
+    dRatio = sum(distance)/normal_distance/720.0
     ok= True
     if  dRatio > 1.5 or dRatio < 0.5:
+        ok = False
+    dRatio = min(distance)/normal_distance
+    if  dRatio < 0.25:
+        ok = False
+    dRatio = max(distance) / normal_distance
+    if dRatio > 2:
         ok = False
     return ok
 
@@ -177,9 +184,7 @@ def doImageProcess(image):
     #poly= np.array([[image.shape[1]//2,0],[0,image.shape[0]//2],[0,image.shape[0]//2]])
     #image = cv2.fillPoly(image,[poly],(0,0,0))
 
-    # undistort the image using the matrix from calibration
-    image = cv2.undistort(image, mtx, dist, None, mtx)
-    # Apply blur to original image with a small kernel.
+   # Apply blur to original image with a small kernel.
 
     bluredImage = cv2.GaussianBlur(image, (3, 3), 0)
 
@@ -202,6 +207,7 @@ def doImageProcess(image):
 def warped(img):
     global M
     return cv2.warpPerspective(img, M, (img.shape[1], img.shape[0]), flags=cv2.INTER_NEAREST)
+
 
 
 def dewarped(img):
@@ -371,7 +377,7 @@ def curveStepOne(binary_warped):
     if (not isLeftValid) and (not isRightValid):
         left_fit = deepcopy(old_left_fit)
         right_fit = deepcopy(old_right_fit)
-    elif isLeftValid or isRightValid:
+    elif (not isLeftValid) or (not isRightValid):
         if not isLeftValid:
             left_fit = gen_parallel(right_fit, -3.9 / xprop, 0, out_img.shape[0], xprop / yprop)
 
@@ -415,7 +421,6 @@ def curvature(leftx,rightx,ploty,y_eval):
                     (2 * left_fit_cr[0])
     right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / \
                      (2 * right_fit_cr[0])
-
     #print(left_curverad, 'm', right_curverad, 'm')
     # Example values: 632.1 m    626.2 m
     return left_curverad, right_curverad
@@ -426,9 +431,10 @@ def curvatureLine(fit,ploty):
     xm_per_pix = xprop  # meters per pixel in x dimension
 
     # fit_cr gives a real X when introduce a proyected y
-    fit_cr = fit*xprop
+    left_fitx = fit[0]*ploty**2+fit[1]*ploty+fit[3]
+    fit_cr = cv2.polyfit(ploty*yprop, left_fitx*xprop)
     # Calculate the new radii of curvature in all points
-    curverad = ((1 + (2 * fit_cr[0] * ploty  + fit_cr[1]) ** 2) ** 1.5) / \
+    curverad = ((1 + (2 * fit_cr[0] * ploty *yprop + fit_cr[1]) ** 2) ** 1.5) / \
                     (2 * fit_cr[0])
 
     # Now our radius of curvature is in meters in all points
@@ -450,11 +456,16 @@ def main():
         frame +=1
         if frame == 2:
             pass
-        imgMod = warped(doImageProcess(img))
-        polW = np.zeros(img.shape)
+        baseTime = time()
+        # undistort the image using the matrix from calibration
+        img = cv2.undistort(img, mtx, dist, None, mtx)
+        imgMod = doImageProcess(warped(img))
+        print("warped {:3.2f}".format(1000*(time() - baseTime)))
+        polW = np.zeros(img.shape,dtype='uint8')
+        polWP = np.zeros(img.shape, dtype='uint8')
         dst = np.zeros(img.shape)
         left_fit, right_fit, laneWidth, lwf, rwf,out_img = curveStepOne(imgMod)
-
+        print("Curve {:3.2f}".format(1000 * (time() - baseTime)))
         left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
         right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
         dotsL = np.dstack((left_fitx, ploty))
@@ -463,36 +474,65 @@ def main():
         parx_fit = fquad(par_fit,ploty)
         dotsPar = np.dstack((parx_fit,ploty))
         poligon = np.concatenate((np.int32(dotsL), np.flip(np.int32(dotsR), axis=1)), axis=1)
-
-        cv2.fillPoly(polW, poligon, (0, 255, 0))
-        #cv2.fillPoly(polW, [dstPers.astype(int)], (0, 0, 255)) #original calibration polygon
-        if rwf:
-            cv2.polylines(polW, np.int32(dotsR), False, (255,255,0),thickness=10)
-        else:
-            cv2.polylines(polW, np.int32(dotsR), False, (255, 0, 0), thickness=10)
+        print("Prepare polys {:3.2f}".format(1000 * (time() - baseTime)))
         if lwf:
-            cv2.polylines(polW, np.int32(dotsL), False, (255, 0, 255),thickness=10)
+            lColor = (255, 0, 255)
         else:
-            cv2.polylines(polW, np.int32(dotsL), False, (255, 0, 0 ), thickness=10)
-        cv2.polylines(polW, np.int32(dotsPar), False, (0,0, 255), thickness=10)
+            lColor = (0,0,255)
+        if rwf:
+            rColor = (255, 0, 255)
+        else:
+            rColor = (0,0,255)
+        if rwf and lwf:
+            mColor = (0, 255, 0)
+        elif rwf or lwf:
+            mColor = (0, 255, 255)
+        else:
+            mColor = (0,0,255)
+
+        #cv2.fillPoly(polW, [dstPers.astype(int)], (0, 0, 255)) #original calibration polygon
+        cv2.fillPoly(polWP, np.int32(poligon), mColor)
+        cv2.polylines(polWP, np.int32(dotsL), False, lColor, thickness=10)
+        cv2.polylines(polWP, np.int32(dotsR), False, rColor, thickness=10)
+        polT = cv2.perspectiveTransform(poligon.astype(float),Minv)
+        cv2.fillPoly(polW, polT.astype(int), mColor)
+        polT = cv2.perspectiveTransform(dotsL.astype(float),Minv)
+        cv2.polylines(polW, polT.astype(int), False, lColor,thickness=10)
+        polT = cv2.perspectiveTransform(dotsR, Minv)
+        cv2.polylines(polW, polT.astype(int), False, rColor,thickness=10)
+        #cv2.polylines(polW, np.int32(dotsPar), False, (0,0, 255), thickness=10)
         '''persp3c = np.zeros(img.shape)
         persp3c[:,:,0]= 0
         persp3c[:,:,1] = imgMod * 255
         persp3c[:,:,2] = imgMod * 255'''
-        dw = np.uint8(dewarped(polW))
-        dst = cv2.addWeighted(img, .7, dw, .3, 0.0)
+        #dw = np.uint8(dewarped(polW))
+        print("dewarped {:3.2f}".format(1000 * (time() - baseTime)))
+        dst = cv2.addWeighted(img, .7, np.uint8(polW), .3, 0.0)
+        print("Weighted 1 {:3.2f}".format(1000 * (time() - baseTime)))
         cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,20),font,15,(255,0,255))
         cv2.addText(dst, "Left failures: {:} Right failures: {:}".format(lwf,rwf), (10, 40), font, 15, (255, 0, 255))
+        print("Text 1 {:3.2f}".format(1000 * (time() - baseTime)))
         lc, rc = curvature(left_fitx, right_fitx, ploty, 700)
-        for i in range(1):
+        mlc = curvatureLine(left_fit,ploty)[700]
+        mrc = curvatureLine(right_fit, ploty)[700]
+        mpc = curvatureLine(par_fit, ploty)[700]
+
+        cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f}".format(700, lc, rc),
+                    (10, 60 ), font, 15, (255, 0, 255))
+        cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f} parallel {:0f}".format(700, mlc, mrc, mpc),
+                    (10, 80), font, 15, (255, 0, 255))
+        print("Curvature 1 {:3.2f}".format(1000 * (time() - baseTime)))
+        '''for i in range(1):
             lc, rc = curvature(left_fitx,right_fitx,ploty,720-40-i*80)
             cv2.addText(dst, "Pos y {} Left curvature: {:.0f} Right curvature: {:.0f}".format(720-40-i*80,lc, rc), (10, 60+20*i), font, 15, (255, 0, 255))
-
+        print("Text 2 {:3.2f}".format(1000 * (time() - baseTime)))'''
 
         #cv2.imshow("Org", img)
         #cv2.imshow("Persp", out_img)
-        out2 = cv2.resize(polW,(320,180))
+        out2 = cv2.resize(polWP,(320,180))
+        print("Resize 1 {:3.2f}".format(1000 * (time() - baseTime)))
         out3 = cv2.resize(out_img, (320, 180))
+        print("Resize 2 {:3.2f}".format(1000 * (time() - baseTime)))
         dst[0:180,960:]=out2
         dst[185:365, 960:] = out3
         cv2.imshow("Mix", dst)
@@ -500,6 +540,7 @@ def main():
             pass
 
         k=chr(cv2.waitKey(5)&255)
+        print("Draw {:3.2f}".format(1000 * (time() - baseTime)))
         if k=='p':
             k=cv2.waitKey(100)
             while k!='c' and k!='p':
