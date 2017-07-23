@@ -13,9 +13,7 @@ M = Minv = mtx = dist = rvecs = tvecs = None
 #project calibration
 #orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
 #videoFileName = "project_video.mp4"
-yLenXample = 29.0
-orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
-videoFileName = "project_video.mp4"
+#yLenXample = 29.0
 
 # chalenger calibration
 orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
@@ -460,8 +458,10 @@ def curvatureLine(fit,ploty):
     xm_per_pix = xprop  # meters per pixel in x dimension
 
     # fit_cr gives a real X when introduce a proyected y
+
     left_fitx = fit[0]*ploty**2+fit[1]*ploty+fit[2]
     fit_cr = np.polyfit(ploty*yprop, left_fitx*xprop,2)
+
     # Calculate the new radii of curvature in all points
     curverad = ((1 + (2 * fit_cr[0] * ploty *yprop + fit_cr[1]) ** 2) ** 1.5) / \
                     (2 * fit_cr[0])
@@ -499,7 +499,6 @@ def main():
         frame +=1
         if frame == 2:
             pass
-
         baseTime = time()
         # undistort the image using the matrix from calibration
         img = cv2.undistort(img, mtx, dist, None, mtx)
