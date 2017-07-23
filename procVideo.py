@@ -7,12 +7,15 @@ import pickle
 import glob
 from copy import deepcopy
 import math
+from time import time
 CALCAM_FILENAME = "cam_cal.pkl"
 M = Minv = mtx = dist = rvecs = tvecs = None
 #project calibration
 #orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
 #videoFileName = "project_video.mp4"
 yLenXample = 29.0
+orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
+videoFileName = "project_video.mp4"
 
 # chalenger calibration
 orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
@@ -36,7 +39,7 @@ old_left_fit = (0,0,leftx_base_old)
 old_right_fit = (0,0,rightx_base_old)
 isLastValid= False
 ploty = np.linspace(0, 719, 720)
-
+baseTime = time()
 def startUp():
     global M, Minv, mtx, dist, rvecs, tvecs, xprop, yprop, ploty
     # xproportion is the width of the lane proyected/ real size in m.
@@ -121,6 +124,10 @@ def maskHSVYellowAndWhite(orig_img):
     midV = 230
     thr = 19
     hsv = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HSV)
+    value = hsv[:, :, 2]
+    minV = np.min(value)
+    maxV = np.max(value)
+    hsv[:, :, 2] = (255.0 * (value - minV) / float(maxV - minV))
     hls = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HLS)
     # transform from BRG to HSV
 
@@ -129,25 +136,44 @@ def maskHSVYellowAndWhite(orig_img):
     maskW = cv2.inRange(hsv, np.array([0, 0, 170]), np.array([15, 10, 230]))
     maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
     mask4 = cv2.inRange(hsv, np.array([100, 0, 170]), np.array([180, 50, 150]))'''
+    #Positive Filters
+    pf1 = cv2.inRange(hsv, np.array([150 - 1, 2 - 6, 98 - 10]), np.array([150 + 1, 2 + 6, 98 + 10]))
+    pf2 = cv2.inRange(hsv,np.array([23-7,113-10,230-45]),np.array([23+7,113+10,255]))
+    pf3 = cv2.inRange(hsv,np.array([21-3,62-36,126-25]),np.array([21+3,62+56,126+25]))
+    pf4 = cv2.inRange(hsv, np.array([27-3,0,183]), np.array([27+3,0+39,183+67]))
+    pf5 = cv2.inRange(hsv, np.array([117-11,82-47,102-19]), np.array([117+11,82+47,102+19]))
+    nf1 = np.int8(np.logical_not(cv2.inRange(hsv, np.array([15 - 1, 22 - 1, 239 - 1]), np.array([15 + 1, 22 + 1, 239 + 1]))))*255
+    nf2 = np.int8(np.logical_not(
+        cv2.inRange(hsv, np.array([119-19,0,40]), np.array([140,240,255])))) * 255
 
-    maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 100]), np.array([22 + 3, 125 + 90, 100 + 70]))
+    maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 181]), np.array([22 + 3, 125 + 90, 181 + 70]))
     # get withe mask
     maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 30]), np.array([176, midS + 16, midV + 25]))
     maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
     # to join both mask I have to do an OR between them,
     # finally make a BRG image with 255 in all dots yellow or white
-    mask = maskW
-    mask = np.bitwise_or(maskW, maskY)
+    #mask = maskW
+    #mask = np.bitwise_or(maskW, maskY)
     #mask = np.bitwise_or(mask, maskS)
     #mask = np.bitwise_or(mask, mask4)
     #mask=maskY
+    mask = pf1
+
+    #positive filters needs or operation
+    mask = np.bitwise_or(pf1, pf2)
+    mask = np.bitwise_or(mask, pf3)
+    mask = np.bitwise_or(mask, pf4)
+    #mask = np.bitwise_or(mask, pf5)
+    # and with negative filters
+    mask = np.bitwise_and(mask, nf1)
+    #mask = np.bitwise_and(mask, nf2)
     mask3 = np.copy(orig_img)
     mask3[:, :, 0] = mask
     mask3[:, :, 1] = mask
     mask3[:, :, 2] = mask
 
     # apply mask with and bitwise operation to remove allother pixels.
-    #maskedImage = np.bitwise_and(mask3, orig_img)
+    maskedImage = np.bitwise_and(mask3, orig_img)
     #return mask3
     return mask
 def fquad(fit,y):
@@ -159,9 +185,15 @@ def checkParalell(fitL, fitR, normal_distance):
     posL = fquad(fitL, ploty)
     porR = fquad(fitR, ploty)
     distance= (porR-posL)
-    dRatio = sum(distance/normal_distance)
+    dRatio = sum(distance)/normal_distance/720.0
     ok= True
     if  dRatio > 1.5 or dRatio < 0.5:
+        ok = False
+    dRatio = min(distance)/normal_distance
+    if  dRatio < 0.25:
+        ok = False
+    dRatio = max(distance) / normal_distance
+    if dRatio > 2:
         ok = False
     return ok
 
@@ -180,21 +212,19 @@ def doImageProcess(image):
     #poly= np.array([[image.shape[1]//2,0],[0,image.shape[0]//2],[0,image.shape[0]//2]])
     #image = cv2.fillPoly(image,[poly],(0,0,0))
 
-    # undistort the image using the matrix from calibration
-    image = cv2.undistort(image, mtx, dist, None, mtx)
-    # Apply blur to original image with a small kernel.
+   # Apply blur to original image with a small kernel.
 
-    bluredImage = cv2.GaussianBlur(image, (3, 3), 2)
+    bluredImage = cv2.GaussianBlur(image, (3,3),0)
 
     # remove all pixels that is not white or yellow
-    sobx, soby = procSobel2(bluredImage, 80, 150)
+    sobx, soby = procSobel2(bluredImage, 20, 150)
     filter =  soby * 255
 
     image[:,:,0]= filter
     image[:, :, 1] = filter
     image[:, :, 2] = filter
     maskedImage = np.bitwise_and(image, bluredImage)
-    maskedImage = maskHSVYellowAndWhite(bluredImage)
+    maskedImage = maskHSVYellowAndWhite(maskedImage)
 
     #return cv2.cvtColor(maskedImage,cv2.COLOR_BayerRG2GRAY)
     return maskedImage
@@ -205,6 +235,7 @@ def doImageProcess(image):
 def warped(img):
     global M
     return cv2.warpPerspective(img, M, (img.shape[1], img.shape[0]), flags=cv2.INTER_NEAREST)
+
 
 
 def dewarped(img):
@@ -256,7 +287,7 @@ def curveStepOne(binary_warped):
     margin = 60
     # Set minimum number of pixels found to recenter window
     minpix = 50
-    maxpix = (margin*window_height)*0.8
+    maxpix = (margin*window_height*2)*.6
     # Create empty lists to receive left and right lane pixel indices
     left_lane_inds = []
     right_lane_inds = []
@@ -291,8 +322,8 @@ def curveStepOne(binary_warped):
             previous_left_offset = leftx_current
             leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
             previous_left_offset = leftx_current - previous_left_offset
-            leftx_current += previous_left_offset
         else:
+            leftx_current += previous_left_offset
             cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 0,255), 2)
             left_windows_failure += 1
         if len(good_right_inds) > minpix and len(good_right_inds)< maxpix:
@@ -300,8 +331,8 @@ def curveStepOne(binary_warped):
             previous_right_offset = rightx_current
             rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
             previous_right_offset = rightx_current - previous_right_offset
-            rightx_current += previous_right_offset
         else:
+            rightx_current += previous_right_offset
             cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 0, 255), 2)
             right_windows_failure += 1
             if len(good_right_inds) > minpix:
@@ -327,7 +358,7 @@ def curveStepOne(binary_warped):
 
 
 
-    minimumW= 2
+    minimumW= 4
     maxFailuers = nwindows-minimumW
     fakeLeft = False
     fakeRight = False
@@ -375,7 +406,7 @@ def curveStepOne(binary_warped):
     if (not isLeftValid) and (not isRightValid):
         left_fit = deepcopy(old_left_fit)
         right_fit = deepcopy(old_right_fit)
-    elif isLeftValid or isRightValid:
+    elif (not isLeftValid) or (not isRightValid):
         if not isLeftValid:
             left_fit = gen_parallel(right_fit, -3.9 / xprop, 0, out_img.shape[0], xprop / yprop)
 
@@ -419,7 +450,6 @@ def curvature(leftx,rightx,ploty,y_eval):
                     (2 * left_fit_cr[0])
     right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / \
                      (2 * right_fit_cr[0])
-
     #print(left_curverad, 'm', right_curverad, 'm')
     # Example values: 632.1 m    626.2 m
     return left_curverad, right_curverad
@@ -430,36 +460,57 @@ def curvatureLine(fit,ploty):
     xm_per_pix = xprop  # meters per pixel in x dimension
 
     # fit_cr gives a real X when introduce a proyected y
-    fit_cr = fit*xprop
+    left_fitx = fit[0]*ploty**2+fit[1]*ploty+fit[2]
+    fit_cr = np.polyfit(ploty*yprop, left_fitx*xprop,2)
     # Calculate the new radii of curvature in all points
-    curverad = ((1 + (2 * fit_cr[0] * ploty  + fit_cr[1]) ** 2) ** 1.5) / \
+    curverad = ((1 + (2 * fit_cr[0] * ploty *yprop + fit_cr[1]) ** 2) ** 1.5) / \
                     (2 * fit_cr[0])
 
     # Now our radius of curvature is in meters in all points
     return curverad
 
-def main():
-    startUp()
+def takeBrick(event,x,y,flags,param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        for i in range(-20,20):
+            brick=img[y-20:y+20,x-25+i:x+25+i,:]
+            cv2.imwrite("train/line_" + str((int)(time()*1000))+".png",brick)
+    if event == cv2.EVENT_MBUTTONDOWN:
+        for i in range(-20,20):
+            brick=img[y-20:y+20,x-25+i:x+25+i,:]
+            cv2.imwrite("train/other_" + str((int)(time()*1000))+".png",brick)
 
+
+def main():
+    global img
+    startUp()
+    cleanImage=False
     cap = cv2.VideoCapture(videoFileName)
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
     [valid, img] = cap.read()
     dotsL = np.array((img.shape[0], 2), dtype=np.uint8)
     imgMod = warped(doImageProcess(img))
     #left_fit, right_fit,,, = curveStepOne(imgMod)
     #cv2.imshow("Test", imgMod)
     cv2.imshow("Mix", img)
+    cv2.setMouseCallback('Mix', takeBrick)
     font = 'FONT_HERSHEY_SIMPLEX'
     frame =0
     while valid:
         frame +=1
         if frame == 2:
             pass
-        #img[:, :, 0] = 0  # bye bye green
+
+        baseTime = time()
+        # undistort the image using the matrix from calibration
+        img = cv2.undistort(img, mtx, dist, None, mtx)
         imgMod = warped(doImageProcess(img))
-        polW = np.zeros(img.shape)
+        print("warped {:3.2f}".format(1000*(time() - baseTime)))
+        polW = np.zeros(img.shape,dtype='uint8')
+        polWP = np.zeros(img.shape, dtype='uint8')
+
         dst = np.zeros(img.shape)
         left_fit, right_fit, laneWidth, lwf, rwf,out_img = curveStepOne(imgMod)
-
+        print("Curve {:3.2f}".format(1000 * (time() - baseTime)))
         left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
         right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
         dotsL = np.dstack((left_fitx, ploty))
@@ -468,49 +519,86 @@ def main():
         parx_fit = fquad(par_fit,ploty)
         dotsPar = np.dstack((parx_fit,ploty))
         poligon = np.concatenate((np.int32(dotsL), np.flip(np.int32(dotsR), axis=1)), axis=1)
-
-        cv2.fillPoly(polW, poligon, (0, 255, 0))
-        #cv2.fillPoly(polW, [dstPers.astype(int)], (0, 0, 255)) #original calibration polygon
-        if rwf:
-            cv2.polylines(polW, np.int32(dotsR), False, (255,255,0),thickness=10)
-        else:
-            cv2.polylines(polW, np.int32(dotsR), False, (255, 0, 0), thickness=10)
+        print("Prepare polys {:3.2f}".format(1000 * (time() - baseTime)))
         if lwf:
-            cv2.polylines(polW, np.int32(dotsL), False, (255, 0, 255),thickness=10)
+            lColor = (255, 0, 255)
         else:
-            cv2.polylines(polW, np.int32(dotsL), False, (255, 0, 0 ), thickness=10)
-        cv2.polylines(polW, np.int32(dotsPar), False, (0,0, 255), thickness=10)
+            lColor = (0,0,255)
+        if rwf:
+            rColor = (255, 0, 255)
+        else:
+            rColor = (0,0,255)
+        if rwf and lwf:
+            mColor = (0, 255, 0)
+        elif rwf or lwf:
+            mColor = (0, 255, 255)
+        else:
+            mColor = (0,0,255)
+
+        #cv2.fillPoly(polW, [dstPers.astype(int)], (0, 0, 255)) #original calibration polygon
+        cv2.fillPoly(polWP, np.int32(poligon), mColor)
+        cv2.polylines(polWP, np.int32(dotsL), False, lColor, thickness=10)
+        cv2.polylines(polWP, np.int32(dotsR), False, rColor, thickness=10)
+        polT = cv2.perspectiveTransform(poligon.astype(float),Minv)
+        cv2.fillPoly(polW, polT.astype(int), mColor)
+        polT = cv2.perspectiveTransform(dotsL.astype(float),Minv)
+        cv2.polylines(polW, polT.astype(int), False, lColor,thickness=10)
+        polT = cv2.perspectiveTransform(dotsR, Minv)
+        cv2.polylines(polW, polT.astype(int), False, rColor,thickness=10)
+        #cv2.polylines(polW, np.int32(dotsPar), False, (0,0, 255), thickness=10)
         '''persp3c = np.zeros(img.shape)
         persp3c[:,:,0]= 0
         persp3c[:,:,1] = imgMod * 255
         persp3c[:,:,2] = imgMod * 255'''
-        dw = np.uint8(dewarped(polW))
-        dst = cv2.addWeighted(img, .7, dw, .3, 0.0)
+        #dw = np.uint8(dewarped(polW))
+        print("dewarped {:3.2f}".format(1000 * (time() - baseTime)))
+        dst = cv2.addWeighted(img, .7, np.uint8(polW), .3, 0.0)
+        print("Weighted 1 {:3.2f}".format(1000 * (time() - baseTime)))
         cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,20),font,15,(255,0,255))
         cv2.addText(dst, "Left failures: {:} Right failures: {:}".format(lwf,rwf), (10, 40), font, 15, (255, 0, 255))
+        print("Text 1 {:3.2f}".format(1000 * (time() - baseTime)))
         lc, rc = curvature(left_fitx, right_fitx, ploty, 700)
-        for i in range(1):
+        mlc = curvatureLine(left_fit,ploty)[700]
+        mrc = curvatureLine(right_fit, ploty)[700]
+        mpc = curvatureLine(par_fit, ploty)[700]
+
+        cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f}".format(700, lc, rc),
+                    (10, 60 ), font, 15, (255, 0, 255))
+        cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f} parallel {:0f}".format(700, mlc, mrc, mpc),
+                    (10, 80), font, 15, (255, 0, 255))
+        print("Curvature 1 {:3.2f}".format(1000 * (time() - baseTime)))
+        '''for i in range(1):
             lc, rc = curvature(left_fitx,right_fitx,ploty,720-40-i*80)
             cv2.addText(dst, "Pos y {} Left curvature: {:.0f} Right curvature: {:.0f}".format(720-40-i*80,lc, rc), (10, 60+20*i), font, 15, (255, 0, 255))
-
+        print("Text 2 {:3.2f}".format(1000 * (time() - baseTime)))'''
 
         #cv2.imshow("Org", img)
         #cv2.imshow("Persp", out_img)
-        out2 = cv2.resize(polW,(320,180))
+        out2 = cv2.resize(polWP,(320,180))
+        print("Resize 1 {:3.2f}".format(1000 * (time() - baseTime)))
         out3 = cv2.resize(out_img, (320, 180))
 
+        print("Resize 2 {:3.2f}".format(1000 * (time() - baseTime)))
         dst[0:180,960:]=out2
         dst[185:365, 960:] = out3
-        cv2.imshow("Mix", dst)
+        if cleanImage:
+            cv2.imshow("Mix",img)
+        else:
+            cv2.imshow("Mix", dst)
+        cv2.imwrite(videoFileName[:-4]+"/"+videoFileName[:-4]+'_'+str(frame)+'.jpg',dst)
         if(laneWidth>4):
             pass
 
         k=chr(cv2.waitKey(5)&255)
+        print("Draw {:3.2f}".format(1000 * (time() - baseTime)))
         if k=='p':
             k=cv2.waitKey(100)
             while k!='c' and k!='p':
                 k = chr(cv2.waitKey(100)&255)
                 pass
+        if k == 't':
+            #Enter in training mode
+            cleanImage=not cleanImage
         if k == 'm':
             frame=830
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame)
