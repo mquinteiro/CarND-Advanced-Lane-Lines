@@ -472,27 +472,33 @@ def curvatureLine(fit,ploty):
 def takeBrick(event,x,y,flags,param):
     if event == cv2.EVENT_LBUTTONDOWN:
         for i in range(-20,20):
-            brick=img[y-20:y+20,x-25+i:x+25+i,:]
-            cv2.imwrite("train/line_" + str((int)(time()*1000))+".png",brick)
+            brick = imgWarp[y - 40:y + 40, x - 25 + i:x + 25 + i]
+            cv2.imwrite("trainW/line_" + str((int)(time()*1000))+".png",brick)
+        newImg = imgWarp.copy()
+        cv2.rectangle(newImg, (x-25, y-40), (x + 25, y + 40),(0,0,255))
+        cv2.imshow("MixW",newImg)
     if event == cv2.EVENT_MBUTTONDOWN:
         for i in range(-20,20):
-            brick=img[y-20:y+20,x-25+i:x+25+i,:]
-            cv2.imwrite("train/other_" + str((int)(time()*1000))+".png",brick)
-
+            brick = imgWarp[y - 40:y + 40, x - 25 + i:x + 25 + i]
+            cv2.imwrite("trainW/other_" + str((int)(time()*1000))+".png",brick)
+        newImg = imgWarp.copy()
+        cv2.rectangle(newImg, (x-25, y-40), (x + 25, y + 40), (255,255,0))
+        cv2.imshow("MixW", newImg)
 
 def main():
-    global img
+    global img,imgWarp
     startUp()
     cleanImage=False
     cap = cv2.VideoCapture(videoFileName)
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     [valid, img] = cap.read()
     dotsL = np.array((img.shape[0], 2), dtype=np.uint8)
-    imgMod = warped(doImageProcess(img))
+    imgWarp = warped(doImageProcess(img))
+    imgMod=imgWarp.copy()
     #left_fit, right_fit,,, = curveStepOne(imgMod)
     #cv2.imshow("Test", imgMod)
-    cv2.imshow("Mix", img)
-    cv2.setMouseCallback('Mix', takeBrick)
+    cv2.imshow("MixW", imgWarp)
+    cv2.setMouseCallback('MixW', takeBrick)
     font = 'FONT_HERSHEY_SIMPLEX'
     frame =0
     while valid:
@@ -503,7 +509,10 @@ def main():
         baseTime = time()
         # undistort the image using the matrix from calibration
         img = cv2.undistort(img, mtx, dist, None, mtx)
-        imgMod = warped(doImageProcess(img))
+        imgWarp = warped(img)
+
+        imgMod =warped(doImageProcess(img))
+        cv2.imshow("MixW", imgWarp)
         print("warped {:3.2f}".format(1000*(time() - baseTime)))
         polW = np.zeros(img.shape,dtype='uint8')
         polWP = np.zeros(img.shape, dtype='uint8')
@@ -582,7 +591,7 @@ def main():
         dst[0:180,960:]=out2
         dst[185:365, 960:] = out3
         if cleanImage:
-            cv2.imshow("Mix",img)
+            cv2.imshow("Mix",imgMod)
         else:
             cv2.imshow("Mix", dst)
         cv2.imwrite(videoFileName[:-4]+"/"+videoFileName[:-4]+'_'+str(frame)+'.jpg',dst)
