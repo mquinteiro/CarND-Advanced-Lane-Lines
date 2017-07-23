@@ -13,19 +13,19 @@ M = Minv = mtx = dist = rvecs = tvecs = None
 #project calibration
 #orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
 #videoFileName = "project_video.mp4"
-yLenXample = 29.0
-orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
-videoFileName = "project_video.mp4"
+# yLenXample = 29.0
+# orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
+# videoFileName = "project_video.mp4"
 
 # chalenger calibration
 orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
 videoFileName = "challenge_video.mp4"
 yLenXample = 29.0
-
-#Hard chalenger calibration
-orgPers = np.float32([[344,660],[933,660],[743,500],[519,500]]) #chalenger calibration
-videoFileName = "harder_challenge_video.mp4"
-yLenXample = 18.0
+#
+# #Hard chalenger calibration
+# orgPers = np.float32([[344,660],[933,660],[743,500],[519,500]]) #chalenger calibration
+# videoFileName = "harder_challenge_video.mp4"
+# yLenXample = 18.0
 
 
 dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
@@ -124,18 +124,20 @@ def maskHSVYellowAndWhite(orig_img):
     midV = 230
     thr = 19
     hsv = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HSV)
-    value = hsv[:, :, 2]
-    minV = np.min(value)
-    maxV = np.max(value)
-    hsv[:, :, 2] = (255.0 * (value - minV) / float(maxV - minV))
+    #value = hsv[:, :, 2]
+    #minV = np.min(value)
+    #maxV = np.max(value)
+    #hsv[:, :, 2] = (255.0 * (value - minV) / float(maxV - minV))
     hls = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HLS)
     # transform from BRG to HSV
-
+    '''
     # get yellow mask
-    '''maskY = cv2.inRange(hsv, np.array([22 - 3, 75, 140]), np.array([22 + 3,100, 180]))
+    #maskY = cv2.inRange(hsv, np.array([22 - 5, 30, 140]), np.array([22 + 3,130, 210]))
+    maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 181]), np.array([22 + 3, 125 + 90, 181 + 70]))
     maskW = cv2.inRange(hsv, np.array([0, 0, 170]), np.array([15, 10, 230]))
     maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
-    mask4 = cv2.inRange(hsv, np.array([100, 0, 170]), np.array([180, 50, 150]))'''
+    mask4 = cv2.inRange(hsv, np.array([100, 0, 170]), np.array([180, 50, 150]))
+    
     #Positive Filters
     pf1 = cv2.inRange(hsv, np.array([150 - 1, 2 - 6, 98 - 10]), np.array([150 + 1, 2 + 6, 98 + 10]))
     pf2 = cv2.inRange(hsv,np.array([23-7,113-10,230-45]),np.array([23+7,113+10,255]))
@@ -145,27 +147,27 @@ def maskHSVYellowAndWhite(orig_img):
     nf1 = np.int8(np.logical_not(cv2.inRange(hsv, np.array([15 - 1, 22 - 1, 239 - 1]), np.array([15 + 1, 22 + 1, 239 + 1]))))*255
     nf2 = np.int8(np.logical_not(
         cv2.inRange(hsv, np.array([119-19,0,40]), np.array([140,240,255])))) * 255
-
+    '''
     maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 181]), np.array([22 + 3, 125 + 90, 181 + 70]))
     # get withe mask
-    maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 30]), np.array([176, midS + 16, midV + 25]))
+    maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 60]), np.array([176, midS + 16, midV + 25]))
     maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
     # to join both mask I have to do an OR between them,
     # finally make a BRG image with 255 in all dots yellow or white
     #mask = maskW
-    #mask = np.bitwise_or(maskW, maskY)
-    #mask = np.bitwise_or(mask, maskS)
+    mask = np.bitwise_or(maskW, maskY)
+    mask = np.bitwise_or(mask, maskS)
     #mask = np.bitwise_or(mask, mask4)
     #mask=maskY
-    mask = pf1
+    #mask = pf1
 
     #positive filters needs or operation
-    mask = np.bitwise_or(pf1, pf2)
-    mask = np.bitwise_or(mask, pf3)
-    mask = np.bitwise_or(mask, pf4)
+    #mask = np.bitwise_or(pf1, pf2)
+    #mask = np.bitwise_or(mask, pf3)
+    #mask = np.bitwise_or(mask, pf4)
     #mask = np.bitwise_or(mask, pf5)
     # and with negative filters
-    mask = np.bitwise_and(mask, nf1)
+    #mask = np.bitwise_and(mask, nf1)
     #mask = np.bitwise_and(mask, nf2)
     mask3 = np.copy(orig_img)
     mask3[:, :, 0] = mask
@@ -224,7 +226,7 @@ def doImageProcess(image):
     image[:, :, 1] = filter
     image[:, :, 2] = filter
     maskedImage = np.bitwise_and(image, bluredImage)
-    maskedImage = maskHSVYellowAndWhite(maskedImage)
+    maskedImage = maskHSVYellowAndWhite(bluredImage)
 
     #return cv2.cvtColor(maskedImage,cv2.COLOR_BayerRG2GRAY)
     return maskedImage
@@ -358,7 +360,7 @@ def curveStepOne(binary_warped):
 
 
 
-    minimumW= 4
+    minimumW= 3
     maxFailuers = nwindows-minimumW
     fakeLeft = False
     fakeRight = False
@@ -503,7 +505,7 @@ def main():
         baseTime = time()
         # undistort the image using the matrix from calibration
         img = cv2.undistort(img, mtx, dist, None, mtx)
-        imgMod = warped(doImageProcess(img))
+        imgMod = doImageProcess(warped(img))
         print("warped {:3.2f}".format(1000*(time() - baseTime)))
         polW = np.zeros(img.shape,dtype='uint8')
         polWP = np.zeros(img.shape, dtype='uint8')
@@ -554,8 +556,8 @@ def main():
         print("dewarped {:3.2f}".format(1000 * (time() - baseTime)))
         dst = cv2.addWeighted(img, .7, np.uint8(polW), .3, 0.0)
         print("Weighted 1 {:3.2f}".format(1000 * (time() - baseTime)))
-        cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,20),font,15,(255,0,255))
-        cv2.addText(dst, "Left failures: {:} Right failures: {:}".format(lwf,rwf), (10, 40), font, 15, (255, 0, 255))
+        cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,30),font,15,(255,0,255))
+        cv2.addText(dst, "Left failures: {:} Right failures: {:}".format(lwf,rwf), (10, 60), font, 15, (255, 0, 255))
         print("Text 1 {:3.2f}".format(1000 * (time() - baseTime)))
         lc, rc = curvature(left_fitx, right_fitx, ploty, 700)
         mlc = curvatureLine(left_fit,ploty)[700]
@@ -563,9 +565,8 @@ def main():
         mpc = curvatureLine(par_fit, ploty)[700]
 
         cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f}".format(700, lc, rc),
-                    (10, 60 ), font, 15, (255, 0, 255))
-        cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f} parallel {:0f}".format(700, mlc, mrc, mpc),
-                    (10, 80), font, 15, (255, 0, 255))
+                    (10, 90 ), font, 15, (255, 0, 255))
+        #cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f} parallel {:0f}".format(700, mlc, mrc, mpc),(10, 80), font, 15, (255, 0, 255))
         print("Curvature 1 {:3.2f}".format(1000 * (time() - baseTime)))
         '''for i in range(1):
             lc, rc = curvature(left_fitx,right_fitx,ploty,720-40-i*80)
@@ -585,7 +586,7 @@ def main():
             cv2.imshow("Mix",img)
         else:
             cv2.imshow("Mix", dst)
-        cv2.imwrite(videoFileName[:-4]+"/"+videoFileName[:-4]+'_'+str(frame)+'.jpg',dst)
+        cv2.imwrite(videoFileName[:-4]+"/"+videoFileName[:-4]+'_{:04}'.format(frame)+'.jpg',dst)
         if(laneWidth>4):
             pass
 
