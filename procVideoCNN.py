@@ -8,6 +8,10 @@ import glob
 from copy import deepcopy
 import math
 from time import time
+cvnn = True
+if cvnn:
+    from keras.models import load_model
+dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
 CALCAM_FILENAME = "cam_cal.pkl"
 M = Minv = mtx = dist = rvecs = tvecs = None
 #project calibration
@@ -24,11 +28,12 @@ yLenXample = 29.0
 
 #Hard chalenger calibration
 orgPers = np.float32([[344,660],[933,660],[743,500],[519,500]]) #chalenger calibration
+dstPers = np.float32([[500, 720], [780, 720], [780, 150], [500, 150]])
+
 videoFileName = "harder_challenge_video.mp4"
 yLenXample = 18.0
 
 
-dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
 xprop = 1
 yprop = 1
 nwindows = 12
@@ -124,48 +129,40 @@ def maskHSVYellowAndWhite(orig_img):
     midV = 230
     thr = 19
     hsv = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HSV)
-    value = hsv[:, :, 2]
-    minV = np.min(value)
-    maxV = np.max(value)
-    hsv[:, :, 2] = (255.0 * (value - minV) / float(maxV - minV))
+    #value = hsv[:, :, 2]
+    #minV = np.min(value)
+    #maxV = np.max(value)
+    #hsv[:, :, 2] = (255.0 * (value - minV) / float(maxV - minV))
     hls = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HLS)
     # transform from BRG to HSV
 
     # get yellow mask
-    '''maskY = cv2.inRange(hsv, np.array([22 - 3, 75, 140]), np.array([22 + 3,100, 180]))
+    maskY = cv2.inRange(hsv, np.array([19, 30, 70]), np.array([25 + 15,150, 255]))
     maskW = cv2.inRange(hsv, np.array([0, 0, 170]), np.array([15, 10, 230]))
+    maskW2 = cv2.inRange(hsv, np.array([100, 0, 90]), np.array([115, 60, 180]))
     maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
-    mask4 = cv2.inRange(hsv, np.array([100, 0, 170]), np.array([180, 50, 150]))'''
-    #Positive Filters
-    pf1 = cv2.inRange(hsv, np.array([150 - 1, 2 - 6, 98 - 10]), np.array([150 + 1, 2 + 6, 98 + 10]))
-    pf2 = cv2.inRange(hsv,np.array([23-7,113-10,230-45]),np.array([23+7,113+10,255]))
-    pf3 = cv2.inRange(hsv,np.array([21-3,62-36,126-25]),np.array([21+3,62+56,126+25]))
-    pf4 = cv2.inRange(hsv, np.array([27-3,0,183]), np.array([27+3,0+39,183+67]))
-    pf5 = cv2.inRange(hsv, np.array([117-11,82-47,102-19]), np.array([117+11,82+47,102+19]))
-    nf1 = np.int8(np.logical_not(cv2.inRange(hsv, np.array([15 - 1, 22 - 1, 239 - 1]), np.array([15 + 1, 22 + 1, 239 + 1]))))*255
-    nf2 = np.int8(np.logical_not(
-        cv2.inRange(hsv, np.array([119-19,0,40]), np.array([140,240,255])))) * 255
 
-    maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 181]), np.array([22 + 3, 125 + 90, 181 + 70]))
     # get withe mask
-    maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 30]), np.array([176, midS + 16, midV + 25]))
-    maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
+    #maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 181]), np.array([22 + 3, 125 + 90, 181 + 70]))
+    #maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 30]), np.array([176, midS + 16, midV + 25]))
+    #maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
     # to join both mask I have to do an OR between them,
     # finally make a BRG image with 255 in all dots yellow or white
     #mask = maskW
-    #mask = np.bitwise_or(maskW, maskY)
-    #mask = np.bitwise_or(mask, maskS)
+    mask = np.bitwise_or(maskW, maskY)
+    mask = np.bitwise_or(mask, maskW2)
+    mask = np.bitwise_or(mask, maskS)
     #mask = np.bitwise_or(mask, mask4)
     #mask=maskY
-    mask = pf1
+    #mask = pf1
 
     #positive filters needs or operation
-    mask = np.bitwise_or(pf1, pf2)
-    mask = np.bitwise_or(mask, pf3)
-    mask = np.bitwise_or(mask, pf4)
+    #mask = np.bitwise_or(pf1, pf2)
+    #mask = np.bitwise_or(mask, pf3)
+    #mask = np.bitwise_or(mask, pf4)
     #mask = np.bitwise_or(mask, pf5)
     # and with negative filters
-    mask = np.bitwise_and(mask, nf1)
+    #mask = np.bitwise_and(mask, nf1)
     #mask = np.bitwise_and(mask, nf2)
     mask3 = np.copy(orig_img)
     mask3[:, :, 0] = mask
@@ -223,8 +220,8 @@ def doImageProcess(image):
     image[:,:,0]= filter
     image[:, :, 1] = filter
     image[:, :, 2] = filter
-    maskedImage = np.bitwise_and(image, bluredImage)
-    maskedImage = maskHSVYellowAndWhite(maskedImage)
+    #maskedImage = np.bitwise_and(image, bluredImage)
+    maskedImage = maskHSVYellowAndWhite(bluredImage)
 
     #return cv2.cvtColor(maskedImage,cv2.COLOR_BayerRG2GRAY)
     return maskedImage
@@ -287,7 +284,7 @@ def curveStepOne(binary_warped):
     margin = 60
     # Set minimum number of pixels found to recenter window
     minpix = 50
-    maxpix = (margin*window_height*2)*.6
+    maxpix = (margin*window_height*2)*.8
     # Create empty lists to receive left and right lane pixel indices
     left_lane_inds = []
     right_lane_inds = []
@@ -485,7 +482,33 @@ def takeBrick(event,x,y,flags,param):
         cv2.rectangle(newImg, (x-25, y-40), (x + 25, y + 40), (255,255,0))
         cv2.imshow("MixW", newImg)
 
+def cnnFiltered(image,model):
+    windowed = []
+    for r in range(0, image.shape[0], 80):
+        for c in range(0, image.shape[1] - 50, 30):
+            windowed.append(image[r:r + 80, c:c + 50])
+
+    result = model.predict(np.array(windowed), batch_size=1)
+    idx = 0
+    coef = 1.0
+    isLine = (coef * result[:, 0]) > result[:, 1]
+    mask = np.zeros(image.shape, dtype='uint8')
+    for r in range(0, image.shape[0], 80):
+        for c in range(0, image.shape[1] - 50, 30):
+            if isLine[idx]:
+                cv2.rectangle(mask, (c, r), (c + 50, r + 80), (255, 255, 255), thickness=cv2.FILLED)
+            else:
+                # cv2.rectangle(image, (c, r), (c + 50, r + 80), (0, 0,255))
+                pass
+            idx += 1
+    res = np.bitwise_and(image, mask)
+    cv2.imshow("cnnFilter",res)
+    return res
+
 def main():
+    if cvnn:
+        model = load_model("modelW.h5")
+
     global img,imgWarp
     startUp()
     cleanImage=False
@@ -511,7 +534,11 @@ def main():
         img = cv2.undistort(img, mtx, dist, None, mtx)
         imgWarp = warped(img)
 
-        imgMod =warped(doImageProcess(img))
+        if cvnn:
+            imgFiltered = cnnFiltered(imgWarp,model)
+            imgMod = doImageProcess(imgFiltered)
+        else:
+            imgMod = doImageProcess(imgWarp)
         cv2.imshow("MixW", imgWarp)
         print("warped {:3.2f}".format(1000*(time() - baseTime)))
         polW = np.zeros(img.shape,dtype='uint8')
@@ -605,17 +632,22 @@ def main():
             while k!='c' and k!='p':
                 k = chr(cv2.waitKey(100)&255)
                 pass
+        if k == 's':
+            cv2.imwrite("testW/warped_{:}.png".format((int)(time()*1000)),imgWarp)
         if k == 't':
             #Enter in training mode
             cleanImage=not cleanImage
         if k == 'm':
-            frame=830
+            frame=315
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame)
         if k=='r':
             if frame >60:
                 frame-=60
             else:
                 frame=0
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame)
+        if k=='f':
+            frame+=60
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame)
         [valid, img] = cap.read()
 

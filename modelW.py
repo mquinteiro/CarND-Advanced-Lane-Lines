@@ -17,7 +17,7 @@ from keras.layers.normalization import BatchNormalization
 import random
 
 
-DATA_PATH = "/home/mquinteiro/proyectos/CarND-Advanced-Lane-Lines/train/"
+DATA_PATH = "/home/mquinteiro/proyectos/CarND-Advanced-Lane-Lines/trainW/"
 
 #the image loading and augment augmentation
 def loadImages(path):
@@ -29,7 +29,7 @@ def loadImages(path):
     trues = glob(path+"line_*.png")
     for imgFile in trues:
         image = cv2.imread(imgFile)
-        if image is None or image.shape!=(40,50,3):
+        if image is None or image.shape!=(80,50,3):
             continue
         lines.append(image)
         lines.append(np.fliplr(image))
@@ -38,7 +38,7 @@ def loadImages(path):
     trues = glob(path + "other_*.png")
     for imgFile in trues:
         image = cv2.imread(imgFile)
-        if image is None or image.shape!=(40,50,3):
+        if image is None or image.shape!=(80,50,3):
             continue
         lines.append(np.fliplr(image))
         #print image.shape, imgFile
@@ -63,7 +63,7 @@ def defineDriver(model='MQ'):
 def modelDef():
     print("Creating NVidea model...")
     model = Sequential()
-    model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(40,50, 3)))
+    model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(80,50, 3)))
     model.add(BatchNormalization())
     model.add(Conv2D(36,(5,5), strides=(2,2), activation='relu'))
     model.add(Dropout(0.2))
@@ -101,36 +101,38 @@ def main():
     # create de model
     import os.path as path
     from keras.models import load_model
-    if path.exists("model.h5"):
-        model = load_model("model.h5")
+    if path.exists("modelW.h5"):
+        model = load_model("modelW.h5")
     else:
         model = modelDef()
         X_train, y_train = loadImages(DATA_PATH)
         trainDriver(model, X_train,y_train,8)
-        model.save('model.h5')
+        model.save('modelW.h5')
 
-    for i in range (1,12):
-        #example = cv2.imread("test_images/test"+str(i)+".jpg")
-        filename = "test_images/test" + str(i) + ".jpg"
+    images = glob("testW/warped_*.png")
+    for filename in images:
         #filename = "shot00{:02.0f}.png".format(i)
         example = cv2.imread(filename)
         windowed = []
-        for r in range(360,example.shape[0]-41,20):
-            for c in range(0,example.shape[1]-50,25):
-                windowed.append(example[r:r+40,c:c+50])
+        for r in range(0,example.shape[0]-80,80):
+            for c in range(0,example.shape[1]-50,30):
+                windowed.append(example[r:r+80,c:c+50])
 
         result = model.predict(np.array(windowed), batch_size=1)
         idx=0
         big = result[:,0]<result[:,1]
-        for r in range(360,example.shape[0]-41,20):
-            for c in range(0,example.shape[1]-50,25):
+        mask=np.zeros(example.shape,dtype='uint8')
+        for r in range(0,example.shape[0]-80,80):
+            for c in range(0,example.shape[1]-50,30):
                 if big[idx]:
-                    cv2.rectangle(example, (c, r), (c + 50, r + 40), (0, 0,255))
+                    #cv2.rectangle(example, (c, r), (c + 50, r + 80), (0, 0,255))
+                    pass
                 else:
-                    cv2.rectangle(example, (c, r), (c + 50, r + 40), (0, 255, 0))
+                    cv2.rectangle(mask, (c, r), (c + 50, r + 80), (255, 255, 255),thickness=cv2.FILLED)
                 idx+=1
-        cv2.imshow("test",example)
-        cv2.waitKey(0)
+        res=np.bitwise_and(example,mask)
+        cv2.imshow("test",res)
+        cv2.waitKey(100)
     print(result)
     # old comvinations of different datasets.
 
