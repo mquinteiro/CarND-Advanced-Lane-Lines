@@ -18,8 +18,8 @@ The goals / steps of this project are the following:
 [image3]: ./output_images/undistorted-jpg.jpg "Road Transformed"
 [image4]: ./output_images/perspCalImage.jpg "Rectangle"
 [image5]: ./output_images/perspTransformed.jpg "Top view"
-
 [image6]: ./output_images/persRestored.jpg "Inverse"
+[image7]: ./result.png
 [video1]: ./project_video.mp4 "Video"
 [image8]: ./SegmentDistance.png "SegmentDistance"
 
@@ -48,15 +48,27 @@ That applied to a real world image
 
 
 
-#### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
+#### 2. Color transforms, gradients or other methods to create a thresholded binary image.  
 
+From the first project I lern a lot so I start doing a HSV transforms and removing everithing but
 I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
 
-![alt text][imageb]
+You can see images in the mqAdvFindLines.ipynb Jupiter-notetebook and find photos there and in procVideo.py the functions:
+
+`maskHSVYellowAndWhite
+def doImageProcess(image):
+def procSobel(img,thresh_min = 20,thresh_max = 100):`
+
+That makes the color filters and also sobel filters.
+
+That kind of filters are far to be good in the harder challenge or on hi contrast images I have failures, so I decide to train a nural network in order to detect and filter the lines in the images.
+
+
 
 #### 3. Perspective transform.
 
-To do measurements in the car images we will preform a perspective transform, suposing a plat plane ground.
+To do measurements in the car images we will preform a perspective transform, suposing a plat plane ground, thats is not true and there are some points where it can be detectec, for example in the bridge, the car bounces and it can be detected in the changing length or the lane.
+
 
 First I check where is the photo taken and I found it!!!! that it is [here](https://www.google.es/maps/@37.4398602,-122.2485646,3a,75y,321.74h,82.59t/data=!3m6!1e1!3m4!1sDkPzleAWMIFzyiAlx8VPzw!2e0!7i13312!8i6656?hl=en)
 
@@ -93,34 +105,83 @@ as a result we can view three images Original with the known rectangle, the pers
 ![top][image5]
 ![perspective][image6]
 
-#### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
+The Inverse transformation is very slow, To draw the result lines and oder re-projections I'm using the function: `cv2.perspectiveTransform` hundreds times faster.
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
 
-![alt text][image5]
+
+#### 4. Identifying lanes and fiting with 2nd order polynomial.
+
+
+I'm using a modified version of sliding window to get the lines, it have memory to know were to start in following frames even supoising where the lane segments will be.
+
+The funcion `curveStepOne`
+
+I also added a maximum number of dots in a window in order to discard it to avoid saturated areas.
+
+Ones I have selectec the right and the left windows with the dots that conform the lines I apply the numpy function `polyfit` that you can find in function `curveStepOne`
+
+I have done several test to discard lines, basically I'm doing this tests:
+
+1) Require a minimum number of windows to validate the lines.
+2) check it the lanes are reasonably parallel, to achieve it I calculate the mean, maximum and minimum distance between part of the curve. It is important to calculate
+the parallel point of the line because in a curve it is not the ones ho have the same Y coordinate.
+3) No sharp angles in the road, I invalidate lines with small radius.
+
+There are four important functions in procVideo.py
+checkParallel  -> verify if two fits are reasonably parallel
+gen_parallel  -> with one line generate a parallel one (not just an offset)
+curvatureLine -> check the curvature for a full line
+curvature -> a in the lectures proposed function with little modifications.
+
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
-I did this in lines # through # in my code in `my_other_file.py`
+The curvature is done using funtions curvatureLine and curvature as proposed in the lectures, the first one is for only one fit.
 
-#### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
+I also find and interesting post in stackoverflow about how to [calculate the curvature](https://stackoverflow.com/questions/28269379/curve-curvature-in-numpy)
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
+#### 6. There is a example of output of my procVideo.py program.
 
-![alt text][image6]
+![output][image7]
+
+There you can see some ODS information like the radius.
+
+Also you can see two additional images, with the calculated lane in top view and the windows used to calculate the lanes, in red the bad windows and in green the good ones.
+
+Also you can see that the right line is discard and my calculated parallel is in its place, you can know by the second line if there is a discarded line.
 
 ---
 
 ### Pipeline (video)
 
-#### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
+#### 1. Result videos.
 
-Here's a [link to my video result](./project_video.mp4)
+Here's a [link to my video result](./out_project_video.mp4)
+
+You can see a green area when everithing is ok, yellow when one of two lines of the lane is wrong in that case I do the lane with a parallel line to the good one, and  finally a red if I can't detect the lane.
+
+
+
 
 ---
 
 ### Discussion
 
-#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+#### 1. It is not robust
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+The system is robust in the project video and in the challenge (except first frames) but in the harder challenge is a mesh.
+
+So I've decided to do a new version, using a neural nectwork to filter areas of 50wx80h that are lines or not.
+
+The result is very good, but with a bad performance, with more time it could be refined but it is a very good start.
+
+In this screenshoot you can see In right small image the filter generated by the neural network, it works in the topview space.
+
+![harder_challenge_screenshot_](./harder_challenge_video_418.jpg)
+
+Here is the full video, it is not perfect but woks very well.
+
+
+![harder_challenge_video_](./harder_challenge_videomp4)
+
+The training of the network is in modelW.py and the treined model is in model.h5

@@ -25,7 +25,7 @@ orgPers = np.float32([[344,660],[933,660],[743,500],[519,500]]) #chalenger calib
 videoFileName = "harder_challenge_video.mp4"
 yLenXample = 18.0
 
-
+res=[]
 dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
 xprop = 1
 yprop = 1
@@ -553,18 +553,16 @@ def main():
         print("dewarped {:3.2f}".format(1000 * (time() - baseTime)))
         dst = cv2.addWeighted(img, .7, np.uint8(polW), .3, 0.0)
         print("Weighted 1 {:3.2f}".format(1000 * (time() - baseTime)))
-        cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,20),font,15,(255,0,255))
-        cv2.addText(dst, "Left failures: {:} Right failures: {:}".format(lwf,rwf), (10, 40), font, 15, (255, 0, 255))
+        cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,30),font,15,(200,0,0))
+        cv2.addText(dst, "Left ok: {:} Right ok: {:}".format(lwf,rwf), (10, 60), font, 15, (200, 0, 0))
         print("Text 1 {:3.2f}".format(1000 * (time() - baseTime)))
         lc, rc = curvature(left_fitx, right_fitx, ploty, 700)
         mlc = curvatureLine(left_fit,ploty)[700]
         mrc = curvatureLine(right_fit, ploty)[700]
         mpc = curvatureLine(par_fit, ploty)[700]
 
-        cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f}".format(700, lc, rc),
-                    (10, 60 ), font, 15, (255, 0, 255))
-        cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f} parallel {:0f}".format(700, mlc, mrc, mpc),
-                    (10, 80), font, 15, (255, 0, 255))
+        cv2.addText(dst, "Left curvature: {:.0f} Right curvature: {:.0f}".format(700, lc, rc),
+                    (10, 90 ), font, 15, (255, 0, 255))
         print("Curvature 1 {:3.2f}".format(1000 * (time() - baseTime)))
         '''for i in range(1):
             lc, rc = curvature(left_fitx,right_fitx,ploty,720-40-i*80)
@@ -574,12 +572,11 @@ def main():
         #cv2.imshow("Org", img)
         #cv2.imshow("Persp", out_img)
         out2 = cv2.resize(polWP,(320,180))
-        print("Resize 1 {:3.2f}".format(1000 * (time() - baseTime)))
         out3 = cv2.resize(out_img, (320, 180))
 
-        print("Resize 2 {:3.2f}".format(1000 * (time() - baseTime)))
         dst[0:180,960:]=out2
         dst[185:365, 960:] = out3
+
         if cleanImage:
             cv2.imshow("Mix",img)
         else:

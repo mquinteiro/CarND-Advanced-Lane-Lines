@@ -484,6 +484,7 @@ def takeBrick(event,x,y,flags,param):
 
 def cnnFiltered(image,model):
     windowed = []
+    global res
     for r in range(0, image.shape[0], 80):
         for c in range(0, image.shape[1] - 50, 30):
             windowed.append(image[r:r + 80, c:c + 50])
@@ -502,7 +503,7 @@ def cnnFiltered(image,model):
                 pass
             idx += 1
     res = np.bitwise_and(image, mask)
-    cv2.imshow("cnnFilter",res)
+    #cv2.imshow("cnnFilter",res)
     return res
 
 def main():
@@ -590,8 +591,8 @@ def main():
         print("dewarped {:3.2f}".format(1000 * (time() - baseTime)))
         dst = cv2.addWeighted(img, .7, np.uint8(polW), .3, 0.0)
         print("Weighted 1 {:3.2f}".format(1000 * (time() - baseTime)))
-        cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,20),font,15,(255,0,255))
-        cv2.addText(dst, "Left failures: {:} Right failures: {:}".format(lwf,rwf), (10, 40), font, 15, (255, 0, 255))
+        cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,30),font,15,(200,0,0))
+        cv2.addText(dst, "Left ok: {:} Right ok: {:}".format(lwf,rwf), (10, 60), font, 15, (200, 0, 0))
         print("Text 1 {:3.2f}".format(1000 * (time() - baseTime)))
         lc, rc = curvature(left_fitx, right_fitx, ploty, 700)
         mlc = curvatureLine(left_fit,ploty)[700]
@@ -599,9 +600,7 @@ def main():
         mpc = curvatureLine(par_fit, ploty)[700]
 
         cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f}".format(700, lc, rc),
-                    (10, 60 ), font, 15, (255, 0, 255))
-        cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f} parallel {:0f}".format(700, mlc, mrc, mpc),
-                    (10, 80), font, 15, (255, 0, 255))
+                    (10, 90 ), font, 15, (200, 0, 0))
         print("Curvature 1 {:3.2f}".format(1000 * (time() - baseTime)))
         '''for i in range(1):
             lc, rc = curvature(left_fitx,right_fitx,ploty,720-40-i*80)
@@ -613,15 +612,16 @@ def main():
         out2 = cv2.resize(polWP,(320,180))
         print("Resize 1 {:3.2f}".format(1000 * (time() - baseTime)))
         out3 = cv2.resize(out_img, (320, 180))
-
+        out4 = cv2.resize(res, (320, 180))
         print("Resize 2 {:3.2f}".format(1000 * (time() - baseTime)))
         dst[0:180,960:]=out2
         dst[185:365, 960:] = out3
+        dst[0:180, 635:955] = out4
         if cleanImage:
             cv2.imshow("Mix",imgMod)
         else:
             cv2.imshow("Mix", dst)
-        cv2.imwrite(videoFileName[:-4]+"/"+videoFileName[:-4]+'_'+str(frame)+'.jpg',dst)
+        cv2.imwrite(videoFileName[:-4]+"/"+videoFileName[:-4]+'_{:04}'.format(frame)+'.jpg',dst)
         if(laneWidth>4):
             pass
 
