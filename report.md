@@ -63,6 +63,7 @@ That makes the color filters and also sobel filters.
 
 That kind of filters are far to be good in the harder challenge or on hi contrast images I have failures, so I decide to train a nural network in order to detect and filter the lines in the images.
 
+In the maskHSVYellowAndWhite I have change filters to filter in LAB and LUV color spaces.
 
 
 #### 3. Perspective transform.
@@ -186,8 +187,14 @@ Here is the full video, it is not perfect but woks very well.
 
 The training of the network is in modelW.py and the trained model is in model.h5.
 
-Im my model I only train lines or not, but I think that I can go further and train right, middle and left lines and do a robust network.
+I'm my model I only train lines or not, but I think that I can go further and train right, middle and left lines and do a robust network.
 
 It fails in the sharper curves and in the dark scene with cars.
 
 Any way I wouldn't put my live in his hands :)
+
+#### 2. Second submit
+
+After first review, the reviewer ask for several changes that works better for the project video but horrible for the other two.
+
+I think that gradients and thresholds methods are good for an specific video/road/lines/illumination/etc and but generalize badly.
