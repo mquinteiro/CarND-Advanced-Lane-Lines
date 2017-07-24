@@ -506,6 +506,12 @@ def cnnFiltered(image,model):
     #cv2.imshow("cnnFilter",res)
     return res
 
+def getOffsetFromCenter(left_fit, right_fit):
+    l = fquad(left_fit,720)
+    r = fquad(right_fit,720)
+    return (640 - l - (r - l) / 2) * xprop
+
+
 def main():
     if cvnn:
         model = load_model("modelW.h5")
@@ -593,6 +599,8 @@ def main():
         print("Weighted 1 {:3.2f}".format(1000 * (time() - baseTime)))
         cv2.addText(dst,"Width: {:.2}     Frame: {:}".format(laneWidth,frame),(10,30),font,15,(200,0,0))
         cv2.addText(dst, "Left ok: {:} Right ok: {:}".format(lwf,rwf), (10, 60), font, 15, (200, 0, 0))
+        cv2.addText(dst, "Distance to lane center: {:.0f}".format(center_distance),
+                    (10, 90), font, 15, (255, 0, 255))
         print("Text 1 {:3.2f}".format(1000 * (time() - baseTime)))
         lc, rc = curvature(left_fitx, right_fitx, ploty, 700)
         mlc = curvatureLine(left_fit,ploty)[700]
@@ -601,6 +609,9 @@ def main():
 
         cv2.addText(dst, "At y= {} Left curvature: {:.0f} Right curvature: {:.0f}".format(700, lc, rc),
                     (10, 90 ), font, 15, (200, 0, 0))
+        center_distance = getOffsetFromCenter(left_fit, right_fit)
+        cv2.addText(dst, "Distance to lane center: {:.2f}".format(center_distance),
+                    (10, 120), font, 15, (255, 0, 255))
         print("Curvature 1 {:3.2f}".format(1000 * (time() - baseTime)))
         '''for i in range(1):
             lc, rc = curvature(left_fitx,right_fitx,ploty,720-40-i*80)

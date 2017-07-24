@@ -11,22 +11,24 @@ from time import time
 CALCAM_FILENAME = "cam_cal.pkl"
 M = Minv = mtx = dist = rvecs = tvecs = None
 #project calibration
-#orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
-#videoFileName = "project_video.mp4"
-#yLenXample = 29.0
-
-# chalenger calibration
-orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
-videoFileName = "challenge_video.mp4"
+orgPers = np.float32([[300, 660], [1010, 660], [700, 460], [586, 460]]) #project calibration
+dstPers = np.float32([[300, 720], [980, 720], [980, 100], [300, 100]])
+videoFileName = "project_video.mp4"
 yLenXample = 29.0
 
-#Hard chalenger calibration
-orgPers = np.float32([[344,660],[933,660],[743,500],[519,500]]) #chalenger calibration
-videoFileName = "harder_challenge_video.mp4"
-yLenXample = 18.0
+#chalenger calibration
+# orgPers = np.float32([[344,660],[933,660],[666,462],[620,462]]) #chalenger calibration
+# videoFileName = "challenge_video.mp4"
+# dstPers = np.float32([[300, 720], [980, 720], [980, 50], [300, 50]])
+# yLenXample = 29.0
+#
+# #Hard chalenger calibration
+# orgPers = np.float32([[344,660],[933,660],[743,500],[519,500]]) #chalenger calibration
+# videoFileName = "harder_challenge_video.mp4"
+# dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
+# yLenXample = 18.0
 
 res=[]
-dstPers = np.float32([[500, 720], [780, 720], [780, 50], [500, 50]])
 xprop = 1
 yprop = 1
 nwindows = 12
@@ -79,11 +81,11 @@ def startUp():
 
 # sobel transformation
 def procSobel2(img, thresh_min=20, thresh_max=100):
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # rgb = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    sobely = cv2.Sobel(rgb, cv2.CV_64F, 0, 1)
+    sobely = cv2.Sobel(img, cv2.CV_64F, 0, 1)
     abs_sobely = np.absolute(sobely)
-    sobelx = cv2.Sobel(rgb, cv2.CV_64F, 1, 0)
+    sobelx = cv2.Sobel(img, cv2.CV_64F, 1, 0)
     abs_sobelx = np.absolute(sobelx)
     scaled_sobelx = np.uint8(255 * abs_sobelx / np.max(abs_sobelx))
     scaled_sobely = np.uint8(255 * abs_sobely / np.max(abs_sobely))
@@ -122,18 +124,20 @@ def maskHSVYellowAndWhite(orig_img):
     midV = 230
     thr = 19
     hsv = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HSV)
-    value = hsv[:, :, 2]
-    minV = np.min(value)
-    maxV = np.max(value)
-    hsv[:, :, 2] = (255.0 * (value - minV) / float(maxV - minV))
+    # value = hsv[:, :, 2]
+    # minV = np.min(value)
+    # maxV = np.max(value)
+    # hsv[:, :, 2] = (255.0 * (value - minV) / float(maxV - minV))
     hls = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HLS)
+    lab = cv2.cvtColor(orig_img, cv2.COLOR_BGR2LAB)
+    luv = cv2.cvtColor(orig_img, cv2.COLOR_BGR2Luv)
     # transform from BRG to HSV
 
     # get yellow mask
     '''maskY = cv2.inRange(hsv, np.array([22 - 3, 75, 140]), np.array([22 + 3,100, 180]))
     maskW = cv2.inRange(hsv, np.array([0, 0, 170]), np.array([15, 10, 230]))
     maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
-    mask4 = cv2.inRange(hsv, np.array([100, 0, 170]), np.array([180, 50, 150]))'''
+    mask4 = cv2.inRange(hsv, np.array([100, 0, 170]), np.array([180, 50, 150]))
     #Positive Filters
     pf1 = cv2.inRange(hsv, np.array([150 - 1, 2 - 6, 98 - 10]), np.array([150 + 1, 2 + 6, 98 + 10]))
     pf2 = cv2.inRange(hsv,np.array([23-7,113-10,230-45]),np.array([23+7,113+10,255]))
@@ -143,27 +147,29 @@ def maskHSVYellowAndWhite(orig_img):
     nf1 = np.int8(np.logical_not(cv2.inRange(hsv, np.array([15 - 1, 22 - 1, 239 - 1]), np.array([15 + 1, 22 + 1, 239 + 1]))))*255
     nf2 = np.int8(np.logical_not(
         cv2.inRange(hsv, np.array([119-19,0,40]), np.array([140,240,255])))) * 255
-
-    maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 181]), np.array([22 + 3, 125 + 90, 181 + 70]))
+    '''
+    #maskY = cv2.inRange(hsv, np.array([22 - 3, 125 - 90, 180 - 181]), np.array([22 + 3, 125 + 90, 181 + 70]))
     # get withe mask
-    maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 30]), np.array([176, midS + 16, midV + 25]))
-    maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
+    #maskW = cv2.inRange(hsv, np.array([0, midS - 30, midV - 30]), np.array([176, midS + 16, midV + 25]))
+    #maskS = cv2.inRange(hls, np.array([0, 80, 90]), np.array([255, 255, 255]))
+    maskW = cv2.inRange(luv, np.array([220, 0,0]), np.array([255, 255,255]))
+    maskY = cv2.inRange(lab, np.array([0, 0, 155]), np.array([255, 255, 255]))
     # to join both mask I have to do an OR between them,
     # finally make a BRG image with 255 in all dots yellow or white
     #mask = maskW
-    #mask = np.bitwise_or(maskW, maskY)
+    mask = np.bitwise_or(maskW, maskY)
     #mask = np.bitwise_or(mask, maskS)
     #mask = np.bitwise_or(mask, mask4)
     #mask=maskY
-    mask = pf1
+    # mask = pf1
 
     #positive filters needs or operation
-    mask = np.bitwise_or(pf1, pf2)
-    mask = np.bitwise_or(mask, pf3)
-    mask = np.bitwise_or(mask, pf4)
+    # mask = np.bitwise_or(pf1, pf2)
+    # mask = np.bitwise_or(mask, pf3)
+    # mask = np.bitwise_or(mask, pf4)
     #mask = np.bitwise_or(mask, pf5)
     # and with negative filters
-    mask = np.bitwise_and(mask, nf1)
+    # mask = np.bitwise_and(mask, nf1)
     #mask = np.bitwise_and(mask, nf2)
     mask3 = np.copy(orig_img)
     mask3[:, :, 0] = mask
@@ -172,6 +178,9 @@ def maskHSVYellowAndWhite(orig_img):
 
     # apply mask with and bitwise operation to remove allother pixels.
     maskedImage = np.bitwise_and(mask3, orig_img)
+    myLuv = np.bitwise_and(maskW,luv[:,:,0])
+    #cv2.imshow("LAB",maskY)
+    #cv2.imshow("LUV", myLuv)
     #return mask3
     return mask
 def fquad(fit,y):
@@ -215,14 +224,15 @@ def doImageProcess(image):
     bluredImage = cv2.GaussianBlur(image, (3,3),0)
 
     # remove all pixels that is not white or yellow
-    sobx, soby = procSobel2(bluredImage, 20, 150)
+    maskedImage = maskHSVYellowAndWhite(bluredImage)
+    sobx, soby = procSobel2(maskedImage, 20, 150)
     filter =  soby * 255
 
     image[:,:,0]= filter
     image[:, :, 1] = filter
     image[:, :, 2] = filter
-    maskedImage = np.bitwise_and(image, bluredImage)
-    maskedImage = maskHSVYellowAndWhite(maskedImage)
+    maskedImage = np.bitwise_and(filter, maskedImage)
+    #cv2.imshow("filtered",maskedImage)
 
     #return cv2.cvtColor(maskedImage,cv2.COLOR_BayerRG2GRAY)
     return maskedImage
@@ -240,32 +250,42 @@ def dewarped(img):
     global Minv
     return cv2.warpPerspective(img, Minv, (img.shape[1], img.shape[0]), flags=cv2.INTER_NEAREST)
 
-
+maskHistory = []
+nMemoryFrames = 5
+isLeftValid = False
+isRightValid = False
 def curveStepOne(binary_warped):
     # Assuming you have created a warped binary image called "binary_warped"
     # Take a histogram of the bottom half of the image/
-
+    maskHistory.append(binary_warped)
+    for m in maskHistory:
+        binary_warped = np.bitwise_or(binary_warped,m)
+    if len(maskHistory)>nMemoryFrames:
+        del maskHistory[0]
     out_img = (np.dstack((binary_warped, binary_warped, binary_warped)) )
-    global leftx_base_old, rightx_base_old, old_left_fit, old_right_fit, old_lane_Width, isLastValid
-    if not isLastValid:
-        histogram = np.sum(binary_warped[binary_warped.shape[0]*4 // 5:, :], axis=0)
+    global leftx_base_old, rightx_base_old, old_left_fit, old_right_fit, old_lane_Width, isLastValid,isRightValid,isLeftValid
+    midpoint = binary_warped.shape[1]//2
+    if not isLeftValid:
+        histogram = np.sum(binary_warped[binary_warped.shape[0] * 4 // 5:, :midpoint], axis=0)
+        if np.max(histogram[:])==0:
+            leftx_base = leftx_base_old
+        else:
+            leftx_base = np.argmax(histogram[:])
+    else:
+        leftx_base = leftx_base_old
+    if not isRightValid:
+        histogram = np.sum(binary_warped[binary_warped.shape[0]*4 // 5:, midpoint:], axis=0)
         # Create an output image to draw on and  visualize the result
         # cv2.imshow("debg1",out_img[0])
         # binary_warped[0]
         # Find the peak of the left and right halves of the histogram
         # These will be the starting point for the left and right lines
-        midpoint = np.int(histogram.shape[0] / 2)
-        if np.max(histogram[:midpoint])==0:
-            leftx_base = leftx_base_old
-        else:
-            leftx_base = np.argmax(histogram[:midpoint])
-        if np.max(histogram[midpoint:]) ==0:
+        if np.max(histogram[:]) ==0:
             rightx_base=rightx_base_old
         else:
-            rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+            rightx_base = np.argmax(histogram[:]) + midpoint
         laneWidth = (rightx_base-leftx_base)*xprop
     else:
-        leftx_base = leftx_base_old
         rightx_base = rightx_base_old
         laneWidth = old_lane_Width
 
@@ -284,7 +304,7 @@ def curveStepOne(binary_warped):
     # Set the width of the windows +/- margin
     margin = 60
     # Set minimum number of pixels found to recenter window
-    minpix = 50
+    minpix = 60
     maxpix = (margin*window_height*2)*.6
     # Create empty lists to receive left and right lane pixel indices
     left_lane_inds = []
@@ -296,6 +316,8 @@ def curveStepOne(binary_warped):
     # Step through the windows one by one
     previous_left_offset = 0
     previous_right_offset = 0
+    stopRight = 0
+    stopLeft = 0
     for window in range(nwindows):
         # Identify window boundaries in x and y (and right and left)
         win_y_low = binary_warped.shape[0]  - (window + 1) * window_height
@@ -315,7 +337,7 @@ def curveStepOne(binary_warped):
         left_lane_inds.append(good_left_inds)
         right_lane_inds.append(good_right_inds)
         # If you found > minpix pixels, recenter next window on their mean position
-        if len(good_left_inds) > minpix and len(good_left_inds)< maxpix:
+        if not stopLeft and len(good_left_inds) > minpix and len(good_left_inds)< maxpix:
             cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2)
             previous_left_offset = leftx_current
             leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
@@ -323,16 +345,17 @@ def curveStepOne(binary_warped):
         else:
             leftx_current += previous_left_offset
             cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 0,255), 2)
-            left_windows_failure += 1
-        if len(good_right_inds) > minpix and len(good_right_inds)< maxpix:
+            if not stopLeft:
+                left_windows_failure += 1
+        if (not stopRight) and (len(good_right_inds) > minpix) and (len(good_right_inds)< maxpix):
             cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 255, 0), 2)
             previous_right_offset = rightx_current
             rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
             previous_right_offset = rightx_current - previous_right_offset
         else:
-            rightx_current += previous_right_offset
+            rightx_current += previous_left_offset
             cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 0, 255), 2)
-            right_windows_failure += 1
+            if (not stopRight):  right_windows_failure += 1
             if len(good_right_inds) > minpix:
                 rightx_current += previous_left_offset
         if len(good_left_inds) < minpix and len(good_right_inds) > minpix:
@@ -340,14 +363,15 @@ def curveStepOne(binary_warped):
         #stop geting data
         left_lane_xs.append(leftx_current)
         right_lane_xs.append(rightx_current)
-        if(leftx_current<100):
+        if not stopLeft and (leftx_current<80):
             right_windows_failure += nwindows-window
             left_windows_failure += nwindows - window
-            break
-        if(rightx_current>1100):
+            stopLeft = True
+        if not stopRight and (rightx_current>1180):
             right_windows_failure += nwindows - window
             left_windows_failure += nwindows - window
-            break
+            stopRight = True
+
 
     # Concatenate the arrays of indices
     left_lane_inds = np.concatenate(left_lane_inds)
@@ -356,7 +380,7 @@ def curveStepOne(binary_warped):
 
 
 
-    minimumW= 4
+    minimumW= 3
     maxFailuers = nwindows-minimumW
     fakeLeft = False
     fakeRight = False
@@ -372,6 +396,8 @@ def curveStepOne(binary_warped):
         lefty = nonzeroy[left_lane_inds]
         left_fit = np.polyfit(lefty, leftx, 2)
         isLeftValid = True
+    else:
+        pass
     if right_windows_failure <=maxFailuers:
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
@@ -412,9 +438,9 @@ def curveStepOne(binary_warped):
             right_fit = gen_parallel(left_fit, 3.9 / xprop, 0, out_img.shape[0], xprop / yprop)
     else:
         isLastValid = True
-    left_base_old =  fquad(left_fit,720)
+    leftx_base_old =  fquad(left_fit,720)
     rightx_base_old = fquad(right_fit, 720)
-    laneWidth = old_lane_Width= (rightx_base_old - left_base_old) * xprop
+    laneWidth = old_lane_Width= (rightx_base_old - leftx_base_old) * xprop
     old_left_fit = deepcopy(left_fit)
     old_right_fit = deepcopy(right_fit)
 
@@ -480,6 +506,12 @@ def takeBrick(event,x,y,flags,param):
             cv2.imwrite("train/other_" + str((int)(time()*1000))+".png",brick)
 
 
+def getOffsetFromCenter(left_fit, right_fit):
+    l = fquad(left_fit,720)
+    r = fquad(right_fit,720)
+    return (640-l-(r-l)/2)*xprop
+
+
 def main():
     global img
     startUp()
@@ -502,7 +534,10 @@ def main():
         baseTime = time()
         # undistort the image using the matrix from calibration
         img = cv2.undistort(img, mtx, dist, None, mtx)
-        imgMod = warped(doImageProcess(img))
+        print("Undistort {:3.2f}".format(1000 * (time() - baseTime)))
+        imgMod = warped(img)
+        print("Filters {:3.2f}".format(1000 * (time() - baseTime)))
+        imgMod = doImageProcess(imgMod)
         print("warped {:3.2f}".format(1000*(time() - baseTime)))
         polW = np.zeros(img.shape,dtype='uint8')
         polWP = np.zeros(img.shape, dtype='uint8')
@@ -561,8 +596,11 @@ def main():
         mrc = curvatureLine(right_fit, ploty)[700]
         mpc = curvatureLine(par_fit, ploty)[700]
 
-        cv2.addText(dst, "Left curvature: {:.0f} Right curvature: {:.0f}".format(700, lc, rc),
+        cv2.addText(dst, "Left curvature: {:.0f} Right curvature: {:.0f}".format(lc, rc),
                     (10, 90 ), font, 15, (255, 0, 255))
+        center_distance = getOffsetFromCenter(left_fit,right_fit)
+        cv2.addText(dst, "Distance to lane center: {:.2f}".format(center_distance),
+                    (10, 120), font, 15, (255, 0, 255))
         print("Curvature 1 {:3.2f}".format(1000 * (time() - baseTime)))
         '''for i in range(1):
             lc, rc = curvature(left_fitx,right_fitx,ploty,720-40-i*80)
@@ -581,7 +619,7 @@ def main():
             cv2.imshow("Mix",img)
         else:
             cv2.imshow("Mix", dst)
-        cv2.imwrite(videoFileName[:-4]+"/"+videoFileName[:-4]+'_'+str(frame)+'.jpg',dst)
+        cv2.imwrite(videoFileName[:-4]+"/"+videoFileName[:-4]+'_{:04}'.format(frame)+'.jpg',dst)
         if(laneWidth>4):
             pass
 
@@ -596,7 +634,10 @@ def main():
             #Enter in training mode
             cleanImage=not cleanImage
         if k == 'm':
-            frame=830
+            frame=547
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame)
+        if k == 'f':
+            frame+=60
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame)
         if k=='r':
             if frame >60:
